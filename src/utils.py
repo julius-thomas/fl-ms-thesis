@@ -183,7 +183,9 @@ def stratified_split(raw_dataset, test_size):
 def check_args(args):
     # check device
     if 'cuda' in args.device:
-        assert torch.cuda.is_available(), 'Please check if your GPU is available now!' 
+        assert torch.cuda.is_available(), 'Please check if your GPU is available now!'
+    if 'mps' in args.device:
+        assert torch.backends.mps.is_available() and torch.backends.mps.is_built(), 'Please check if MPS is available on this machine!'
 
     # check optimizer
     if args.optimizer not in torch.optim.__dict__.keys():

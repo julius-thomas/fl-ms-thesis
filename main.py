@@ -62,7 +62,7 @@ if __name__ == "__main__":
     #####################
     parser.add_argument('--exp_name', help='name of the experiment', type=str, required=True)
     parser.add_argument('--seed', help='global random seed', type=int, default=5959)
-    parser.add_argument('--device', help='device to use; `cpu`, `cuda`, `cuda:GPU_NUMBER`', type=str, default='cpu')
+    parser.add_argument('--device', help='device to use; `cpu`, `cuda`, `cuda:GPU_NUMBER`, `mps`', type=str, default='cpu')
     parser.add_argument('--data_path', help='path to save & read raw data', type=str, default='./data')
     parser.add_argument('--log_path', help='path to save logs', type=str, default='./log')
     parser.add_argument('--result_path', help='path to save results', type=str, default='./result')
