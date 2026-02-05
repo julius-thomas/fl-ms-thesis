@@ -76,7 +76,6 @@ if __name__ == "__main__":
     ## dataset configuration arguments
     parser.add_argument('--dataset', help='''name of dataset to use for an experiment (NOTE: case sensitive)
     - image classification datasets in `torchvision.datasets`,
-    - text classification datasets in `torchtext.datasets`,
     - LEAF benchmarks [ FEMNIST | Sent140 | Shakespeare | CelebA | Reddit ],
     - among [ TinyImageNet | CINIC10 | SpeechCommands | BeerReviewsA | BeerReviewsL | Heart | Adult | Cover | GLEAM ]
     ''', type=str, required=True)
@@ -124,7 +123,7 @@ if __name__ == "__main__":
     parser.add_argument('--dropout', help='dropout rate', type=float, choices=[Range(0., 1.)], default=0.1)
     parser.add_argument('--use_model_tokenizer', help='use a model-specific tokenizer (if passed)', action='store_true')
     parser.add_argument('--use_pt_model', help='use a pre-trained model weights for fine-tuning (if passed)', action='store_true')
-    parser.add_argument('--seq_len', help='maximum sequence length used for `torchtext.datasets`)', type=int, default=512)
+    parser.add_argument('--seq_len', help='maximum sequence length used for text datasets', type=int, default=512)
     parser.add_argument('--num_layers', help='number of layers in recurrent cells', type=int, default=2)
     parser.add_argument('--num_embeddings', help='size of an embedding layer', type=int, default=1000)
     parser.add_argument('--embedding_size', help='output dimension of an embedding layer', type=int, default=512)

@@ -2,7 +2,6 @@ import os
 import gc
 import torch
 import logging
-import torchtext
 import torchvision
 import transformers
 import concurrent.futures
@@ -165,10 +164,6 @@ def load_dataset(args):
         _check_and_raise_error(args.split_type, 'pre', 'split scenario')
         transforms = [_get_transform(args, train=True), _get_transform(args, train=False)]
         raw_train, raw_test, args = fetch_torchvision_dataset(args=args, dataset_name=args.dataset, root=args.data_path, transforms=transforms)
-        
-    elif args.dataset in torchtext.datasets.__dict__.keys(): # 4) for downloadable datasets in `torchtext.datasets`...
-        _check_and_raise_error(args.split_type, 'pre', 'split scenario')
-        raw_train, raw_test, args = fetch_torchtext_dataset(args=args, dataset_name=args.dataset, root=args.data_path, seq_len=args.seq_len, tokenizer=tokenizer, num_embeddings=args.num_embeddings) 
         
     elif args.dataset == 'TinyImageNet': # 5) for other public datasets...
         _check_and_raise_error(args.split_type, 'pre', 'split scenario')

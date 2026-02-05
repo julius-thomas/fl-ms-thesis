@@ -5,7 +5,6 @@ Implementations of various Federated Learning (FL) algorithms in PyTorch, especi
 ## Implementation Details
 ### Datasets
 * Supports all image classification datasets in `torchvision.datasets`.
-* Supports all text classification datasets in `torchtext.datasets`.
 * Supports all datasets in [LEAF benchmark](https://leaf.cmu.edu/) (*NO need to prepare raw data manually*)
 * Supports additional image classification datasets ([`TinyImageNet`](https://www.kaggle.com/c/tiny-imagenet), [`CINIC10`](https://datashare.ed.ac.uk/handle/10283/3192)).
 * Supports additional text classification datasets ([`BeerReviews`](https://snap.stanford.edu/data/web-BeerAdvocate.html)).
@@ -45,8 +44,7 @@ Implementations of various Federated Learning (FL) algorithms in PyTorch, especi
 
 ## Requirements
 * See `requirements.txt`. (I recommend building an independent environment for this project, using e.g., `Docker` or `conda`)
-* When you install `torchtext`, please check the version compatibility with `torch`. (See [official repository](https://github.com/pytorch/text#installation))
-* Plus, please install `torch`-related packages using one command provided by the official guide (See [official installation guide](https://pytorch.org/get-started/locally/)); e.g., `conda install pytorch==1.12.0 torchvision==0.13.0 torchaudio==0.12.0 torchtext==0.13.0 cudatoolkit=11.6 -c pytorch -c conda-forge` 
+* Plus, please install `torch`-related packages using one command provided by the official guide (See [official installation guide](https://pytorch.org/get-started/locally/)).
 
 ## Configurations
 * See `python3 main.py -h`.
