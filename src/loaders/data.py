@@ -211,6 +211,12 @@ def load_dataset(args):
         _check_and_raise_error(args.eval_type, 'local', 'evaluation type', False)
         split_map, client_datasets, args = fetch_gleam(args=args, root=args.data_path, seed=args.seed, test_size=args.test_size, seq_len=args.seq_len)
 
+    elif args.dataset == 'CheXpert':
+        _check_and_raise_error(args.split_type, 'pre', 'split scenario')
+        transforms = [_get_transform(args, train=True), _get_transform(args, train=False)]
+        chexpert_root = os.path.join(args.data_path, 'CheXpert')
+        raw_train, raw_test, args = fetch_chexpert(args=args, root=chexpert_root, transforms=transforms)
+
     else: # x) for a dataset with no support yet or incorrectly entered...
         err = f'[LOAD] Dataset `{args.dataset}` is not supported or seems incorrectly entered... please check!'
         logger.exception(err)

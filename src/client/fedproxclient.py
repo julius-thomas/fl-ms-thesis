@@ -24,15 +24,14 @@ class FedproxClient(FedavgClient):
                 inputs, targets = inputs.to(self.args.device), targets.to(self.args.device)
 
                 outputs = self.model(inputs)
-                loss = self.criterion()(outputs, targets)
+                loss = self.criterion(outputs, targets)
 
                 prox = 0.
                 for name, param in self.model.named_parameters():
                     prox += (param - global_model.get_parameter(name)).norm(2)
                 loss += self.args.mu * (0.5 * prox)
 
-                for param in self.model.parameters():
-                    param.grad = None
+                optimizer.zero_grad(set_to_none=True)
                 loss.backward()
                 if self.args.max_grad_norm > 0:
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)

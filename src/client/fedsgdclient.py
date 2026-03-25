@@ -18,10 +18,9 @@ class FedsgdClient(FedavgClient):
             inputs, targets = inputs.to(self.args.device), targets.to(self.args.device)
             
             outputs = self.model(inputs)
-            loss = self.criterion()(outputs, targets)
+            loss = self.criterion(outputs, targets)
 
-            for param in self.model.parameters():
-                param.grad = None
+            self.model.zero_grad(set_to_none=True)
             loss.backward()
             if self.args.max_grad_norm > 0:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)

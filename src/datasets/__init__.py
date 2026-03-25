@@ -5,3 +5,4 @@ from .cinic10 import fetch_cinic10
 from .cover import fetch_cover
 from .gleam import fetch_gleam
 from .speechcommands import fetch_speechcommands
+from .chexpert import fetch_chexpert

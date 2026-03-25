@@ -58,6 +58,31 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     
     #####################
+    # Drift adaptation  #
+    #####################
+    parser.add_argument('--drift_adaptation', help='use drift adaptation for learning rate', action='store_true')
+    parser.add_argument('--drift_adaptation_mode', help='type of LR adaptation; `original` (model-based, server-side), `custom` (loss-based, per-client)', type=str, default='custom')
+    parser.add_argument('--b1', help='EMA coefficient for mean tracking', type=float, choices=[Range(0.01, 0.99)], default=0.5)
+    parser.add_argument('--b2', help='EMA coefficient for variance tracking', type=float, choices=[Range(0.01, 0.99)], default=0.5)
+    parser.add_argument('--b3', help='EMA coefficient for variance ratio tracking', type=float, choices=[Range(0.01, 0.99)], default=0.5)
+
+    #####################
+    #   Concept drift   #
+    #####################
+    parser.add_argument('--concept_drift', help='introduce concept drift to the selected dataset', action='store_true')
+    parser.add_argument('--drift_duration', help='duration of the concept drift in rounds', type=int, default=50)
+    parser.add_argument('--drift_start', help='round number in which the concept drift gets initiated', type=int, default=50)
+    parser.add_argument('--drift_mode', help='type of concept drift; `soft` (mild blur), `hard` (strong blur), `sudden` (label swap)', type=str, default='hard')
+
+    #####################
+    #  Active sampling  #
+    #####################
+    parser.add_argument('--active_sampling', help='apply loss-based active client sampling', action='store_true')
+    parser.add_argument('--sampling_fraction', help='fraction of sampled clients used for active sampling', type=float, default=0.3)
+    parser.add_argument('--sampling_type', help='type of client selection; `max` (top-K by loss), `stoch` (Boltzmann softmax)', type=str, default='max')
+    parser.add_argument('--temp', help='Boltzmann temperature for stochastic sampling', type=float, default=0.5)
+
+    #####################
     # Default arguments #
     #####################
     parser.add_argument('--exp_name', help='name of the experiment', type=str, required=True)
@@ -151,7 +176,8 @@ if __name__ == "__main__":
     parser.add_argument('--eval_metrics', help='metric(s) used for evaluation', type=str,
         choices=[
             'acc1', 'acc5', 'auroc', 'auprc', 'youdenj', 'f1', 'precision', 'recall',
-            'seqacc', 'mse', 'mae', 'mape', 'rmse', 'r2', 'd2'
+            'seqacc', 'mse', 'mae', 'mape', 'rmse', 'r2', 'd2',
+            'mlacc', 'mlauroc'
         ], nargs='+', required=True
     )
     parser.add_argument('--K', help='number of total cilents participating in federated training', type=int, default=100)

@@ -2,6 +2,9 @@ import torch
 import logging
 import torchvision
 
+from src.datasets.cifar10_concept_drift import Cifar10ConceptDrift
+from src.datasets.mnist_concept_drift import MnistConceptDrift, FashionMnistConceptDrift
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,23 +45,45 @@ def fetch_torchvision_dataset(args, dataset_name, root, transforms):
 
         # special case - EMNIST
         if dataset_name == 'EMNIST':
-            train_args['split'] = 'byclass'  
-            
-        # create training dataset instance
-        raw_train = torchvision.datasets.__dict__[dataset_name](**train_args)
+            train_args['split'] = 'byclass'
+
+        # use concept drift wrapper if enabled
+        if getattr(args, 'concept_drift', False):
+            drift_kwargs = dict(total_stages=args.drift_duration, drift_mode=args.drift_mode)
+            if dataset_name == 'CIFAR10':
+                raw_train = Cifar10ConceptDrift(**drift_kwargs, **train_args)
+            elif dataset_name == 'MNIST':
+                raw_train = MnistConceptDrift(**drift_kwargs, **train_args)
+            elif dataset_name == 'FashionMNIST':
+                raw_train = FashionMnistConceptDrift(**drift_kwargs, **train_args)
+            else:
+                raw_train = torchvision.datasets.__dict__[dataset_name](**train_args)
+        else:
+            raw_train = torchvision.datasets.__dict__[dataset_name](**train_args)
         raw_train = VisionClassificationDataset(raw_train, dataset_name.upper(), 'CLIENT')
 
         # for global holdout set
         test_args = DEFAULT_ARGS.copy()
         test_args['transform'] = transforms[1]
         test_args['train'] = False
-                
+
         # special case - EMNIST
         if dataset_name == 'EMNIST':
             test_args['split'] = 'byclass'
-                
-        # create test dataset instance
-        raw_test = torchvision.datasets.__dict__[dataset_name](**test_args)
+
+        # use concept drift wrapper if enabled
+        if getattr(args, 'concept_drift', False):
+            drift_kwargs = dict(total_stages=args.drift_duration, drift_mode=args.drift_mode)
+            if dataset_name == 'CIFAR10':
+                raw_test = Cifar10ConceptDrift(**drift_kwargs, **test_args)
+            elif dataset_name == 'MNIST':
+                raw_test = MnistConceptDrift(**drift_kwargs, **test_args)
+            elif dataset_name == 'FashionMNIST':
+                raw_test = FashionMnistConceptDrift(**drift_kwargs, **test_args)
+            else:
+                raw_test = torchvision.datasets.__dict__[dataset_name](**test_args)
+        else:
+            raw_test = torchvision.datasets.__dict__[dataset_name](**test_args)
         raw_test = VisionClassificationDataset(raw_test, dataset_name.upper(), 'SERVER')
 
         # adjust arguments

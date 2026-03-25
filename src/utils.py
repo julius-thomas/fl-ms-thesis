@@ -53,6 +53,7 @@ class TensorBoardRunner:
         self.server = TensorboardServer(path, host, port)
         self.server.start()
         self.daemon = True
+        logger.info(f'[TENSORBOARD] Listening on http://{host}:{port}')
          
     def finalize(self):
         if self.server.is_alive():    
@@ -181,6 +182,20 @@ def stratified_split(raw_dataset, test_size):
 # Arguments checker #
 #####################
 def check_args(args):
+    # check concept drift mode
+    if getattr(args, 'concept_drift', False):
+        if args.drift_mode not in ('soft', 'hard', 'sudden'):
+            err = f'`{args.drift_mode}` is not a valid drift mode (expected: soft, hard, sudden)'
+            logger.exception(err)
+            raise AssertionError(err)
+
+    # check active sampling type
+    if getattr(args, 'active_sampling', False):
+        if args.sampling_type not in ('max', 'stoch'):
+            err = f'`{args.sampling_type}` is not a valid sampling mode (expected: max, stoch)'
+            logger.exception(err)
+            raise AssertionError(err)
+
     # check device
     if 'cuda' in args.device:
         assert torch.cuda.is_available(), 'Please check if your GPU is available now!'
@@ -290,9 +305,13 @@ class PainlessBCEWithLogitsLoss(torch.nn.BCEWithLogitsLoss):
         super(PainlessBCEWithLogitsLoss, self).__init__(**kwargs)
 
     def forward(self, inputs, targets):
+        # only squeeze trailing dims (keep batch dim intact for multi-label)
+        if inputs.dim() > 1 and inputs.size(-1) == 1:
+            inputs = inputs.squeeze(-1)
+        if targets.dim() > 1 and targets.size(-1) == 1:
+            targets = targets.squeeze(-1)
         return torch.nn.functional.binary_cross_entropy_with_logits(
-            torch.atleast_1d(inputs.squeeze()), 
-            torch.atleast_1d(targets).float()
+            inputs, targets.float()
         )
 
 torch.nn.BCEWithLogitsLoss = PainlessBCEWithLogitsLoss

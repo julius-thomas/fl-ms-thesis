@@ -289,3 +289,44 @@ class D2(BaseMetric):
         scores = torch.cat(self.scores).numpy()
         answers = torch.cat(self.answers).numpy()
         return d2_pinball_score(answers, scores)
+
+
+class Mlacc(BaseMetric):
+    """Multi-label accuracy: threshold predictions at 0.5, compute mean per-label accuracy."""
+    def __init__(self):
+        self.scores = []
+        self.answers = []
+
+    def collect(self, pred, true):
+        p, t = pred.detach().cpu(), true.detach().cpu()
+        self.scores.append(p)
+        self.answers.append(t)
+
+    def summarize(self):
+        scores = torch.cat(self.scores).sigmoid().numpy()
+        answers = torch.cat(self.answers).numpy()
+        preds = (scores >= 0.5).astype(float)
+        # per-label accuracy, then average
+        return np.mean((preds == answers).mean(axis=0))
+
+
+class Mlauroc(BaseMetric):
+    """Multi-label AUROC: compute per-label AUROC then macro-average."""
+    def __init__(self):
+        self.scores = []
+        self.answers = []
+
+    def collect(self, pred, true):
+        p, t = pred.detach().cpu(), true.detach().cpu()
+        self.scores.append(p)
+        self.answers.append(t)
+
+    def summarize(self):
+        scores = torch.cat(self.scores).sigmoid().numpy()
+        answers = torch.cat(self.answers).numpy()
+        # per-label AUROC, skip labels with single class
+        aurocs = []
+        for i in range(answers.shape[1]):
+            if len(np.unique(answers[:, i])) > 1:
+                aurocs.append(roc_auc_score(answers[:, i], scores[:, i]))
+        return np.mean(aurocs) if aurocs else 0.0

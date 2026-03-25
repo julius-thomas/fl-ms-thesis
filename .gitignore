@@ -24,9 +24,11 @@ wheels/
 data/
 log/
 result/
+downloads/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+.claude/

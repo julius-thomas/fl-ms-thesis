@@ -10,7 +10,10 @@ import concurrent.futures
 from importlib import import_module
 from collections import ChainMap, defaultdict
 
+import kornia as K
+
 from src import init_weights, TqdmToLogger, MetricManager
+from src.algorithm.learningrate_estimator import LearningrateEstimatorModel
 from .baseserver import BaseServer
 
 logger = logging.getLogger(__name__)
@@ -27,10 +30,21 @@ class FedavgServer(BaseServer):
         if self.args.eval_type != 'local': # global holdout set for central evaluation
             self.server_dataset = server_dataset
         self.global_model = self._init_model(model) # global model
+        self.criterion = torch.nn.__dict__[self.args.criterion]() # loss function
         self.opt_kwargs = dict(lr=self.args.lr, momentum=self.args.beta1) # federation algorithm arguments
         self.curr_lr = self.args.lr # learning rate
         self.clients = self._create_clients(client_datasets) # clients container
         self.results = defaultdict(dict) # logging results container
+
+        # learning rate adaptation (model-based estimator for "original" mode)
+        if getattr(self.args, 'drift_adaptation', False):
+            self.lr_estimator = LearningrateEstimatorModel(
+                self.args.lr, self.args.b1, self.args.b2, self.args.b3
+            )
+            self.adapted_lr = 0
+
+        # concept drift state
+        self.drift_std = 0.0
 
     def _init_model(self, model):
         logger.info(f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] Initialize a model!')
@@ -70,15 +84,16 @@ class FedavgServer(BaseServer):
         logger.info(f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] Sample clients!')
         if exclude == []: # Update - randomly select max(floor(C * K), 1) clients
             num_sampled_clients = max(int(self.args.C * self.args.K), 1)
-            sampled_client_ids = sorted(random.sample([i for i in range(self.args.K)], num_sampled_clients))
+            sampled_client_ids = sorted(random.sample(range(self.args.K), num_sampled_clients))
         else: # Evaluation - randomly select unparticipated clients in amount of `eval_fraction` multiplied
             num_unparticipated_clients = self.args.K - len(exclude)
             if num_unparticipated_clients == 0: # when C = 1, i.e., need to evaluate on all clients
                 num_sampled_clients = self.args.K
-                sampled_client_ids = sorted([i for i in range(self.args.K)])
+                sampled_client_ids = list(range(self.args.K))
             else:
                 num_sampled_clients = max(int(self.args.eval_fraction * num_unparticipated_clients), 1)
-                sampled_client_ids = sorted(random.sample([identifier for identifier in [i for i in range(self.args.K)] if identifier not in exclude], num_sampled_clients))
+                eligible = [i for i in range(self.args.K) if i not in exclude]
+                sampled_client_ids = sorted(random.sample(eligible, num_sampled_clients))
         logger.info(f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] ...{num_sampled_clients} clients are selected!')
         return sampled_client_ids
 
@@ -110,7 +125,7 @@ class FedavgServer(BaseServer):
             num_samples.append(resulting_sizes[identifier])
 
             # log per client
-            logger.info(client_log_string)
+            logger.debug(client_log_string)
         else:
             num_samples = np.array(num_samples).astype(float)
 
@@ -180,21 +195,67 @@ class FedavgServer(BaseServer):
         logger.info(total_log_string)
         return result_dict
 
-    def _request(self, ids, eval, participated, retain_model, save_raw):
+    def _request(self, ids, eval, participated, retain_model, save_raw, lr_update=False, get_loss=False):
+        def __set_drift(client):
+            client.drift_std = float(getattr(self, 'drift_std', 0.0))
+            client.drift_mode = getattr(self.args, 'drift_mode', 'hard')
+
         def __update_clients(client):
             if client.model is None:
                 client.download(self.global_model)
-            client.args.lr = self.curr_lr
+            __set_drift(client)
+            # set learning rate based on adaptation mode
+            if getattr(self.args, 'drift_adaptation', False) and self.args.drift_adaptation_mode == 'original':
+                client.args.lr = self.adapted_lr
+            else:
+                client.args.lr = self.curr_lr
+            client.round = self.round
             update_result = client.update()
             return {client.id: len(client.training_set)}, {client.id: update_result}
 
         def __evaluate_clients(client):
             if client.model is None:
                 client.download(self.global_model)
-            eval_result = client.evaluate() 
+            __set_drift(client)
+            eval_result = client.evaluate()
             if not retain_model:
                 client.model = None
             return {client.id: len(client.test_set)}, {client.id: eval_result}
+
+        def __update_lr(client):
+            client.args.lr = self.curr_lr
+            client.round = self.round
+            lr_result = client.update_estimator()
+            return lr_result
+
+        def __get_loss(client):
+            if client.model is None:
+                client.download(self.global_model)
+            __set_drift(client)
+            losses = client.get_loss()
+            return {client.id: losses}
+
+        # LR update mode (for "custom" drift adaptation)
+        if lr_update:
+            logger.info(f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] Request lr updates to {len(ids)} clients!')
+            results = []
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(ids), os.cpu_count() - 1)) as workhorse:
+                for idx in TqdmToLogger(ids, logger=logger,
+                    desc=f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] ...update lr... ',
+                    total=len(ids)):
+                    results.append(workhorse.submit(__update_lr, self.clients[idx]).result())
+            return np.mean(results)
+
+        # Get loss mode (for active sampling)
+        if get_loss:
+            logger.info(f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] Request loss evaluation to {len(ids)} clients!')
+            results = []
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(ids), os.cpu_count() - 1)) as workhorse:
+                for idx in TqdmToLogger(ids, logger=logger,
+                    desc=f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] ...get losses... ',
+                    total=len(ids)):
+                    results.append(workhorse.submit(__get_loss, self.clients[idx]).result())
+            return {x: r[x] for r in results for x in r}
 
         logger.info(f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] Request {"updates" if not eval else "evaluation"} to {"all" if ids is None else len(ids)} clients!')
         if eval:
@@ -261,6 +322,58 @@ class FedavgServer(BaseServer):
         logger.info(f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] ...successfully aggregated into a new gloal model!')
         return server_optimizer
 
+    def _apply_gpu_drift(self, x):
+        """Apply Gaussian blur drift on GPU tensors."""
+        std = float(getattr(self, 'drift_std', 0.0))
+        if std <= 0.0:
+            return x
+        mode = getattr(self.args, 'drift_mode', 'hard')
+        if mode == 'soft':
+            ksize, sigma = (7, 7), max(1e-3, 2.0 * std)
+        else:  # 'hard'
+            ksize, sigma = (11, 11), max(1e-3, 5.0 * std)
+        return K.filters.gaussian_blur2d(x, ksize, (sigma, sigma)).clamp(0.0, 1.0)
+
+    def _drift_dataset(self):
+        """Apply concept drift to datasets based on drift mode."""
+        if self.args.drift_mode in ['soft', 'hard']:
+            self._update_drift_strength()
+        elif self.args.drift_mode == 'sudden' and self.args.drift_start == self.round:
+            # activate sudden label-swap drift
+            self.clients[0].training_set.subset.dataset.dataset.dataset.sudden_drift = True
+            if self.args.eval_type != 'local':
+                self.server_dataset.dataset.sudden_drift = True
+
+    def _update_drift_strength(self):
+        """Compute incremental drift strength (0..1) based on current round."""
+        self.drift_std = 0.0
+        if not getattr(self.args, 'concept_drift', False):
+            return
+        start = int(getattr(self.args, 'drift_start', 0))
+        dur = int(getattr(self.args, 'drift_duration', 0))
+        if dur <= 0:
+            return
+        if start <= self.round <= (start + dur):
+            self.drift_std = max(0.0, min(1.0, (self.round - start) / dur))
+
+    def _get_highest_loss(self, client_losses):
+        """Select clients by loss: 'max' picks top-K, 'stoch' uses Boltzmann softmax sampling."""
+        X = int(len(client_losses) * self.args.sampling_fraction)
+
+        if self.args.sampling_type == 'stoch':
+            ids = list(client_losses.keys())
+            losses = np.array(list(client_losses.values()))
+            # Boltzmann softmax
+            e_x = np.exp(losses / self.args.temp)
+            distr = e_x / np.sum(e_x)
+            ids = np.random.choice(ids, size=X, p=distr, replace=False).tolist()
+        else:  # 'max'
+            sorted_clients = sorted(client_losses.items(), key=lambda x: x[1])
+            ids = [cid for cid, _ in sorted_clients[-X:]]
+
+        logger.info(f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] ...selected {len(ids)} clients for active sampling!')
+        return ids
+
     @torch.no_grad()
     def _central_evaluate(self):
         mm = MetricManager(self.args.eval_metrics)
@@ -269,9 +382,10 @@ class FedavgServer(BaseServer):
 
         for inputs, targets in torch.utils.data.DataLoader(dataset=self.server_dataset, batch_size=self.args.B, shuffle=False):
             inputs, targets = inputs.to(self.args.device), targets.to(self.args.device)
+            inputs = self._apply_gpu_drift(inputs)
 
             outputs = self.global_model(inputs)
-            loss = torch.nn.__dict__[self.args.criterion]()(outputs, targets)
+            loss = self.criterion(outputs, targets)
 
             mm.track(loss.item(), outputs, targets)
         else:
@@ -291,6 +405,9 @@ class FedavgServer(BaseServer):
             server_log_string += f'| {metric}: {value:.4f} '
         logger.info(server_log_string)
 
+        # log learning rates
+        self.writer.add_scalar('Learning Rate', self.curr_lr, self.round)
+
         # log TensorBoard
         self.writer.add_scalar('Server Loss', loss, self.round)
         for name, value in result['metrics'].items():
@@ -302,20 +419,57 @@ class FedavgServer(BaseServer):
     def update(self):
         """Update the global model through federated learning.
         """
+        ##################
+        # Concept Drift  #
+        ##################
+        if getattr(self.args, 'concept_drift', False):
+            if self.args.drift_start <= self.round <= (self.args.drift_start + self.args.drift_duration):
+                self._drift_dataset()
+
+        ########################
+        # LR Adaptation: custom (loss-based, per-client estimators)
+        ########################
+        if getattr(self.args, 'drift_adaptation', False) and self.args.drift_adaptation_mode == 'custom':
+            all_ids = [c.id for c in self.clients]
+            self._request(all_ids, eval=False, participated=True, retain_model=True, save_raw=False, lr_update=True)
+            for cid in all_ids:
+                if self.clients[cid].model is not None:
+                    self.clients[cid].model = None
+
         #################
         # Client Update #
         #################
         selected_ids = self._sample_clients() # randomly select clients
-        updated_sizes = self._request(selected_ids, eval=False, participated=True, retain_model=True, save_raw=False) # request update to selected clients
-        _ = self._request(selected_ids, eval=True, participated=True, retain_model=True, save_raw=False) # request evaluation to selected clients 
-        
+
+        ######################
+        # Active Sampling    #
+        ######################
+        if getattr(self.args, 'active_sampling', False):
+            # get losses from sampled clients to re-select by loss
+            client_losses = self._request(selected_ids, eval=False, participated=True, retain_model=True, save_raw=False, get_loss=True)
+            for cid in selected_ids:
+                if self.clients[cid].model is not None:
+                    self.clients[cid].model = None
+            selected_ids = self._get_highest_loss(client_losses)
+
+        ########################
+        # LR Adaptation: original (model-based, server-side estimator)
+        ########################
+        if getattr(self.args, 'drift_adaptation', False) and self.args.drift_adaptation_mode == 'original':
+            self.adapted_lr = self.lr_estimator.estimate(self.global_model, self.round, self.curr_lr)
+
+        # request update & evaluation to selected clients
+        updated_sizes = self._request(selected_ids, eval=False, participated=True, retain_model=True, save_raw=False)
+        _ = self._request(selected_ids, eval=True, participated=True, retain_model=True, save_raw=False)
+
         #################
         # Server Update #
         #################
         server_optimizer = self._get_algorithm(self.global_model, **self.opt_kwargs)
         server_optimizer.zero_grad(set_to_none=True)
-        server_optimizer = self._aggregate(server_optimizer, selected_ids, updated_sizes) # aggregate local updates
-        server_optimizer.step() # update global model with by the aggregated update
+        server_optimizer = self._aggregate(server_optimizer, selected_ids, updated_sizes)
+        server_optimizer.step()
+
         if self.round % self.args.lr_decay_step == 0: # update learning rate
             self.curr_lr *= self.args.lr_decay
         return selected_ids
@@ -329,7 +483,7 @@ class FedavgServer(BaseServer):
         if self.args.eval_type != 'global': # `local` or `both`: evaluate on selected clients' holdout set
             selected_ids = self._sample_clients(exclude=excluded_ids)
             _ = self._request(selected_ids, eval=True, participated=False, retain_model=False, save_raw=self.round == self.args.R)
-        if self.args.eval_type != 'local': # `global` or `both`: evaluate on the server's global holdout set 
+        if self.args.eval_type != 'local': # `global` or `both`: evaluate on the server's global holdout set
             self._central_evaluate()
 
         # calculate generalization gap
