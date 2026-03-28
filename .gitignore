@@ -25,6 +25,7 @@ data/
 log/
 result/
 external-data/
+slurm/
 
 # IDE
 .vscode/
