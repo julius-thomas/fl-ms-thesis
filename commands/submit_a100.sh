@@ -10,7 +10,7 @@
 
 # Usage: sbatch commands/submit_a100.sh commands/chexpert/explore/runs/iid.sh
 
-source ~/miniconda3/etc/profile.d/conda.sh
-conda activate fl
+module load pytorch/2.2.2
+source ~/envs/fl/bin/activate
 
 source "$1"
