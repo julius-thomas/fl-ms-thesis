@@ -24,7 +24,7 @@ wheels/
 data/
 log/
 result/
-downloads/
+external-data/
 
 # IDE
 .vscode/
