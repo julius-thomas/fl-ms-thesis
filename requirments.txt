@@ -6,3 +6,5 @@ transformers==4.27.4
 tqdm==4.65.0
 einops==0.6.1
 kornia
+torchvision
+torchaudio
