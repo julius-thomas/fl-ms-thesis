@@ -79,17 +79,29 @@ def simulate_split(args, dataset):
             logger=logger,
             desc='[SIMULATE] ...assigning to clients... '
             ):
-            # update selection proability according to the count of reamining shards
+            # update selection probability according to the count of remaining shards
             # i.e., do NOT sample from class having no remaining shards
-            selection_prob = np.where(np.array(list(class_shards_counts.values())) > 0, 1., 0.)
-            selection_prob /= sum(selection_prob)
-            
+            remaining = np.array(list(class_shards_counts.values()))
+            selection_prob = np.where(remaining > 0, 1., 0.)
+            prob_sum = selection_prob.sum()
+
+            if prob_sum == 0:
+                # all shards exhausted — re-split the largest existing shard for remaining clients
+                largest_idx = max(range(len(assigned_shards)), key=lambda i: len(assigned_shards[i]))
+                half = len(assigned_shards[largest_idx]) // 2
+                new_shard = assigned_shards[largest_idx][half:]
+                assigned_shards[largest_idx] = assigned_shards[largest_idx][:half]
+                assigned_shards.append(new_shard)
+                continue
+
+            selection_prob /= prob_sum
+
             # select classes to be considered
             try:
                 selected_classes = np.random.choice(args.num_classes, args.mincls, replace=False, p=selection_prob)
             except: # if shard size is not fit enough, some clients may inevitably have samples from classes less than the number of `mincls`
                 selected_classes = np.random.choice(args.num_classes, args.mincls, replace=True, p=selection_prob)
-            
+
             # assign shards in randomly selected classes to current client
             for it, class_idx in enumerate(selected_classes):
                 selected_shard_indices = np.random.choice(len(split_indices[class_idx]), 1)[0]
