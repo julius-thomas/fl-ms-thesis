@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=fl
 #SBATCH -p gpu
-#SBATCH --gres=gpu:a100:1
+#SBATCH --gres=gpu:a40:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=12:00:00
