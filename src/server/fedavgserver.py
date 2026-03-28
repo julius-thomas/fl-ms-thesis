@@ -239,7 +239,7 @@ class FedavgServer(BaseServer):
         if lr_update:
             logger.info(f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] Request lr updates to {len(ids)} clients!')
             results = []
-            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(ids), os.cpu_count() - 1)) as workhorse:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(ids), torch.cuda.device_count() or 1)) as workhorse:
                 for idx in TqdmToLogger(ids, logger=logger,
                     desc=f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] ...update lr... ',
                     total=len(ids)):
@@ -250,7 +250,7 @@ class FedavgServer(BaseServer):
         if get_loss:
             logger.info(f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] Request loss evaluation to {len(ids)} clients!')
             results = []
-            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(ids), os.cpu_count() - 1)) as workhorse:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(ids), torch.cuda.device_count() or 1)) as workhorse:
                 for idx in TqdmToLogger(ids, logger=logger,
                     desc=f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] ...get losses... ',
                     total=len(ids)):
@@ -262,10 +262,10 @@ class FedavgServer(BaseServer):
             if self.args.train_only:
                 return None
             jobs, results = [], []
-            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(ids), os.cpu_count() - 1)) as workhorse:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(ids), torch.cuda.device_count() or 1)) as workhorse:
                 for idx in TqdmToLogger(
-                    ids, 
-                    logger=logger, 
+                    ids,
+                    logger=logger,
                     desc=f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] ...evaluate clients... ',
                     total=len(ids)
                     ):
@@ -285,10 +285,10 @@ class FedavgServer(BaseServer):
             return None
         else:
             jobs, results = [], []
-            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(ids), os.cpu_count() - 1)) as workhorse:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(ids), torch.cuda.device_count() or 1)) as workhorse:
                 for idx in TqdmToLogger(
-                    ids, 
-                    logger=logger, 
+                    ids,
+                    logger=logger,
                     desc=f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] ...update clients... ',
                     total=len(ids)
                     ):
