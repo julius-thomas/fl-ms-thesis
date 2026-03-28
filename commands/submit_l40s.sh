@@ -8,9 +8,10 @@
 #SBATCH --output=slurm/out/slurm-%j.out
 #SBATCH --error=slurm/err/slurm-%j.err
 
-# Usage: sbatch commands/submit_a100.sh commands/chexpert/explore/runs/iid.sh
+# Usage: sbatch commands/submit_l40s.sh commands/chexpert/explore/runs/iid.sh
 
 module load cuda/12.8
 conda activate fl
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 source "$1"
