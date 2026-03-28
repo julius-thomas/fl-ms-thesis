@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=fl
 #SBATCH -p gpu
-#SBATCH --gres=gpu:a40:1
+#SBATCH --gres=gpu:l40s:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=12:00:00
@@ -10,7 +10,7 @@
 
 # Usage: sbatch commands/submit_a100.sh commands/chexpert/explore/runs/iid.sh
 
-module load pytorch/2.2.2
-source ~/envs/fl/bin/activate
+module load cuda/12.8
+conda activate fl
 
 source "$1"
