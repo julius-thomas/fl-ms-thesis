@@ -380,7 +380,9 @@ class FedavgServer(BaseServer):
         self.global_model.eval()
         self.global_model.to(self.args.device)
 
-        for inputs, targets in torch.utils.data.DataLoader(dataset=self.server_dataset, batch_size=self.args.B, shuffle=False):
+        _cuda = 'cuda' in self.args.device
+        _dl_extra = dict(num_workers=4, prefetch_factor=2) if _cuda else {}
+        for inputs, targets in torch.utils.data.DataLoader(dataset=self.server_dataset, batch_size=self.args.B, shuffle=False, pin_memory=_cuda, **_dl_extra):
             inputs, targets = inputs.to(self.args.device), targets.to(self.args.device)
             inputs = self._apply_gpu_drift(inputs)
 

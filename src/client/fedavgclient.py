@@ -52,7 +52,9 @@ class FedavgClient(BaseClient):
 
     def _create_dataloader(self, dataset, shuffle):
         pin = 'cuda' in self.args.device
-        return torch.utils.data.DataLoader(dataset=dataset, batch_size=self.batch_size, shuffle=shuffle, pin_memory=pin)
+        nw = 4 if 'cuda' in self.args.device else 0
+        extra = dict(num_workers=nw, prefetch_factor=2) if nw > 0 else {}
+        return torch.utils.data.DataLoader(dataset=dataset, batch_size=self.batch_size, shuffle=shuffle, pin_memory=pin, **extra)
 
     def _apply_gpu_drift(self, x):
         """Apply Gaussian blur drift on GPU tensors."""

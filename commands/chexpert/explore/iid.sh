@@ -1,6 +1,4 @@
 #!/bin/bash
-# CheXpert FL — IID baseline
-# ResNet18 (hidden_size=32), 224x224 input, 25% dataset, 3 local epochs
 
 python3 main.py \
     --exp_name "FedAvg_CheXpert_ResNet18_IID" --seed 42 --device cuda \

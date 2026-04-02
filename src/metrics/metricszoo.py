@@ -20,17 +20,17 @@ class Acc1(BaseMetric):
         self._use_youdenj = False
 
     def collect(self, pred, true):
-        p, t = pred.detach().cpu(), true.detach().cpu()
+        p, t = pred.detach(), true.detach()
         self.scores.append(p)
         self.answers.append(t)
 
     def summarize(self):
-        scores = torch.cat(self.scores)
-        answers = torch.cat(self.answers).numpy()
+        scores = torch.cat(self.scores).cpu()
+        answers = torch.cat(self.answers).cpu().numpy()
 
         if scores.size(-1) > 1: # multi-class
             labels = scores.argmax(-1).numpy()
-        else: 
+        else:
             scores = scores.sigmoid().numpy()
             if self._use_youdenj: # binary - use Youden's J to determine a label
                 fpr, tpr, thresholds = roc_curve(answers, scores)
@@ -47,13 +47,13 @@ class Acc5(BaseMetric):
         self._use_youdenj = False
 
     def collect(self, pred, true):
-        p, t = pred.detach().cpu(), true.detach().cpu()
+        p, t = pred.detach(), true.detach()
         self.scores.append(p)
         self.answers.append(t)
 
     def summarize(self):
-        scores = torch.cat(self.scores).softmax(-1).numpy()
-        answers = torch.cat(self.answers).numpy()
+        scores = torch.cat(self.scores).cpu().softmax(-1).numpy()
+        answers = torch.cat(self.answers).cpu().numpy()
         num_classes = scores.shape[-1]
         return top_k_accuracy_score(answers, scores, k=5, labels=np.arange(num_classes))
 
@@ -63,13 +63,13 @@ class Auroc(BaseMetric):
         self.answers = []
 
     def collect(self, pred, true):
-        p, t = pred.detach().cpu(), true.detach().cpu()
+        p, t = pred.detach(), true.detach()
         self.scores.append(p)
         self.answers.append(t)
 
     def summarize(self):
-        scores = torch.cat(self.scores).softmax(-1).numpy()
-        answers = torch.cat(self.answers).numpy()
+        scores = torch.cat(self.scores).cpu().softmax(-1).numpy()
+        answers = torch.cat(self.answers).cpu().numpy()
         num_classes = scores.shape[-1]
         return roc_auc_score(answers, scores, average='weighted', multi_class='ovr', labels=np.arange(num_classes))
 
@@ -79,13 +79,13 @@ class Auprc(BaseMetric): # only for binary classification
         self.answers = []
 
     def collect(self, pred, true):
-        p, t = pred.detach().cpu(), true.detach().cpu()
+        p, t = pred.detach(), true.detach()
         self.scores.append(p)
         self.answers.append(t)
 
     def summarize(self):
-        scores = torch.cat(self.scores).sigmoid().numpy()
-        answers = torch.cat(self.answers).numpy()
+        scores = torch.cat(self.scores).cpu().sigmoid().numpy()
+        answers = torch.cat(self.answers).cpu().numpy()
         return average_precision_score(answers, scores, average='weighted')
 
 class Youdenj(BaseMetric):  # only for binary classification
@@ -94,13 +94,13 @@ class Youdenj(BaseMetric):  # only for binary classification
         self.answers = []
 
     def collect(self, pred, true):
-        p, t = pred.detach().cpu(), true.detach().cpu()
+        p, t = pred.detach(), true.detach()
         self.scores.append(p)
         self.answers.append(t)
 
     def summarize(self):
-        scores = torch.cat(self.scores).sigmoid().numpy()
-        answers = torch.cat(self.answers).numpy()
+        scores = torch.cat(self.scores).cpu().sigmoid().numpy()
+        answers = torch.cat(self.answers).cpu().numpy()
         fpr, tpr, thresholds = roc_curve(answers, scores)
         return thresholds[np.argmax(tpr - fpr)]
 
@@ -111,17 +111,17 @@ class F1(BaseMetric):
         self._use_youdenj = False
 
     def collect(self, pred, true):
-        p, t = pred.detach().cpu(), true.detach().cpu()
+        p, t = pred.detach(), true.detach()
         self.scores.append(p)
         self.answers.append(t)
 
     def summarize(self):
-        scores = torch.cat(self.scores)
-        answers = torch.cat(self.answers).numpy()
+        scores = torch.cat(self.scores).cpu()
+        answers = torch.cat(self.answers).cpu().numpy()
 
         if scores.size(-1) > 1: # multi-class
             labels = scores.argmax(-1).numpy()
-        else: 
+        else:
             scores = scores.sigmoid().numpy()
             if self._use_youdenj: # binary - use Youden's J to determine a label
                 fpr, tpr, thresholds = roc_curve(answers, scores)
@@ -138,17 +138,17 @@ class Precision(BaseMetric):
         self._use_youdenj = False
 
     def collect(self, pred, true):
-        p, t = pred.detach().cpu(), true.detach().cpu()
+        p, t = pred.detach(), true.detach()
         self.scores.append(p)
         self.answers.append(t)
 
     def summarize(self):
-        scores = torch.cat(self.scores)
-        answers = torch.cat(self.answers).numpy()
+        scores = torch.cat(self.scores).cpu()
+        answers = torch.cat(self.answers).cpu().numpy()
 
         if scores.size(-1) > 1: # multi-class
             labels = scores.argmax(-1).numpy()
-        else: 
+        else:
             scores = scores.sigmoid().numpy()
             if self._use_youdenj: # binary - use Youden's J to determine a label
                 fpr, tpr, thresholds = roc_curve(answers, scores)
@@ -165,17 +165,17 @@ class Recall(BaseMetric):
         self._use_youdenj = False
 
     def collect(self, pred, true):
-        p, t = pred.detach().cpu(), true.detach().cpu()
+        p, t = pred.detach(), true.detach()
         self.scores.append(p)
         self.answers.append(t)
 
     def summarize(self):
-        scores = torch.cat(self.scores)
-        answers = torch.cat(self.answers).numpy()
+        scores = torch.cat(self.scores).cpu()
+        answers = torch.cat(self.answers).cpu().numpy()
 
         if scores.size(-1) > 1: # multi-class
             labels = scores.argmax(-1).numpy()
-        else: 
+        else:
             scores = scores.sigmoid().numpy()
             if self._use_youdenj: # binary - use Youden's J to determine a label
                 fpr, tpr, thresholds = roc_curve(answers, scores)
@@ -192,13 +192,13 @@ class Seqacc(BaseMetric):
 
     def collect(self, pred, true):
         num_classes = pred.size(-1)
-        p, t = pred.detach().cpu(), true.detach().cpu()
+        p, t = pred.detach(), true.detach()
         self.scores.append(p.view(-1, num_classes))
         self.answers.append(t.view(-1))
 
     def summarize(self):
-        labels = torch.cat(self.scores).argmax(-1).numpy()
-        answers = torch.cat(self.answers).numpy()
+        labels = torch.cat(self.scores).cpu().argmax(-1).numpy()
+        answers = torch.cat(self.answers).cpu().numpy()
 
         # ignore special tokens
         labels = labels[answers != -1]
@@ -212,13 +212,13 @@ class Mse(BaseMetric):
         self.answers = []
 
     def collect(self, pred, true):
-        p, t = pred.detach().cpu(), true.detach().cpu()
+        p, t = pred.detach(), true.detach()
         self.scores.append(p)
         self.answers.append(t)
 
     def summarize(self):
-        scores = torch.cat(self.scores).numpy()
-        answers = torch.cat(self.answers).numpy()
+        scores = torch.cat(self.scores).cpu().numpy()
+        answers = torch.cat(self.answers).cpu().numpy()
         return mean_squared_error(answers, scores)
 
 class Rmse(Mse):
@@ -226,8 +226,8 @@ class Rmse(Mse):
         super(Rmse, self).__init__()
 
     def summarize(self):
-        scores = torch.cat(self.scores).numpy()
-        answers = torch.cat(self.answers).numpy()
+        scores = torch.cat(self.scores).cpu().numpy()
+        answers = torch.cat(self.answers).cpu().numpy()
         return mean_squared_error(answers, scores, squared=False)
 
 class Mae(BaseMetric):
@@ -236,13 +236,13 @@ class Mae(BaseMetric):
         self.answers = []
 
     def collect(self, pred, true):
-        p, t = pred.detach().cpu(), true.detach().cpu()
+        p, t = pred.detach(), true.detach()
         self.scores.append(p)
         self.answers.append(t)
 
     def summarize(self):
-        scores = torch.cat(self.scores).numpy()
-        answers = torch.cat(self.answers).numpy()
+        scores = torch.cat(self.scores).cpu().numpy()
+        answers = torch.cat(self.answers).cpu().numpy()
         return mean_absolute_error(answers, scores)
 
 class Mape(BaseMetric):
@@ -251,13 +251,13 @@ class Mape(BaseMetric):
         self.answers = []
 
     def collect(self, pred, true):
-        p, t = pred.detach().cpu(), true.detach().cpu()
+        p, t = pred.detach(), true.detach()
         self.scores.append(p)
         self.answers.append(t)
 
     def summarize(self):
-        scores = torch.cat(self.scores).numpy()
-        answers = torch.cat(self.answers).numpy()
+        scores = torch.cat(self.scores).cpu().numpy()
+        answers = torch.cat(self.answers).cpu().numpy()
         return mean_absolute_percentage_error(answers, scores)
 
 class R2(BaseMetric):
@@ -266,13 +266,13 @@ class R2(BaseMetric):
         self.answers = []
 
     def collect(self, pred, true):
-        p, t = pred.detach().cpu(), true.detach().cpu()
+        p, t = pred.detach(), true.detach()
         self.scores.append(p)
         self.answers.append(t)
 
     def summarize(self, *args):
-        scores = torch.cat(self.scores).numpy()
-        answers = torch.cat(self.answers).numpy()
+        scores = torch.cat(self.scores).cpu().numpy()
+        answers = torch.cat(self.answers).cpu().numpy()
         return r2_score(answers, scores)
 
 class D2(BaseMetric):
@@ -281,13 +281,13 @@ class D2(BaseMetric):
         self.answers = []
 
     def collect(self, pred, true):
-        p, t = pred.detach().cpu(), true.detach().cpu()
+        p, t = pred.detach(), true.detach()
         self.scores.append(p)
         self.answers.append(t)
 
     def summarize(self, *args):
-        scores = torch.cat(self.scores).numpy()
-        answers = torch.cat(self.answers).numpy()
+        scores = torch.cat(self.scores).cpu().numpy()
+        answers = torch.cat(self.answers).cpu().numpy()
         return d2_pinball_score(answers, scores)
 
 
@@ -298,13 +298,13 @@ class Mlacc(BaseMetric):
         self.answers = []
 
     def collect(self, pred, true):
-        p, t = pred.detach().cpu(), true.detach().cpu()
+        p, t = pred.detach(), true.detach()
         self.scores.append(p)
         self.answers.append(t)
 
     def summarize(self):
-        scores = torch.cat(self.scores).sigmoid().numpy()
-        answers = torch.cat(self.answers).numpy()
+        scores = torch.cat(self.scores).cpu().sigmoid().numpy()
+        answers = torch.cat(self.answers).cpu().numpy()
         preds = (scores >= 0.5).astype(float)
         # per-label accuracy, then average
         return np.mean((preds == answers).mean(axis=0))
@@ -317,13 +317,13 @@ class Mlauroc(BaseMetric):
         self.answers = []
 
     def collect(self, pred, true):
-        p, t = pred.detach().cpu(), true.detach().cpu()
+        p, t = pred.detach(), true.detach()
         self.scores.append(p)
         self.answers.append(t)
 
     def summarize(self):
-        scores = torch.cat(self.scores).sigmoid().numpy()
-        answers = torch.cat(self.answers).numpy()
+        scores = torch.cat(self.scores).cpu().sigmoid().numpy()
+        answers = torch.cat(self.answers).cpu().numpy()
         # per-label AUROC, skip labels with single class
         aurocs = []
         for i in range(answers.shape[1]):
