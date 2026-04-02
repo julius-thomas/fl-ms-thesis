@@ -19,19 +19,20 @@ class ResNet(torch.nn.Module):
         self.hidden_size = hidden_size
         self.num_classes = num_classes
 
+        h = hidden_size
         self.features = torch.nn.Sequential(
-            torch.nn.Conv2d(self.in_channels, self.hidden_size, kernel_size=3, stride=1, padding=1, bias=False),
-            torch.nn.BatchNorm2d(self.hidden_size),
+            torch.nn.Conv2d(self.in_channels, h, kernel_size=3, stride=1, padding=1, bias=False),
+            torch.nn.BatchNorm2d(h),
             torch.nn.ReLU(True),
-            self._make_layers(block, self.hidden_size, config[0], stride=1),
-            self._make_layers(block, self.hidden_size * 2, config[1], stride=2),
-            self._make_layers(block, self.hidden_size * 4, config[2], stride=2),
-            self._make_layers(block, self.hidden_size * 8, config[3], stride=2),
-        ) 
+            self._make_layers(block, h, config[0], stride=1),
+            self._make_layers(block, h * 2, config[1], stride=2),
+            self._make_layers(block, h * 4, config[2], stride=2),
+            self._make_layers(block, h * 8, config[3], stride=2),
+        )
         self.classifier = torch.nn.Sequential(
-            torch.nn.AdaptiveAvgPool2d((7, 7)),
+            torch.nn.AdaptiveAvgPool2d((1, 1)),
             torch.nn.Flatten(),
-            torch.nn.Linear((7 * 7) * self.hidden_size, self.num_classes, bias=True)
+            torch.nn.Linear(h * 8, self.num_classes, bias=True)
         )
 
     def forward(self, x):
