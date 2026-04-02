@@ -76,8 +76,9 @@ class FedavgClient(BaseClient):
         inputs, targets = next(iter(self.train_loader))
         inputs, targets = inputs.to(self.args.device), targets.to(self.args.device)
         inputs = self._apply_gpu_drift(inputs)
-        outputs = self.model(inputs)
-        loss = self.criterion(outputs, targets)
+        with torch.autocast(device_type='cuda', dtype=torch.bfloat16, enabled=self.args.bf16):
+            outputs = self.model(inputs)
+            loss = self.criterion(outputs, targets)
         return loss.item()
 
     @torch.inference_mode()
@@ -92,8 +93,9 @@ class FedavgClient(BaseClient):
         while batch_count <= 50:
             inputs, targets = next(iter(self.train_loader))
             inputs, targets = inputs.to(self.args.device), targets.to(self.args.device)
-            outputs = self.model(inputs)
-            loss_arr.append(self.criterion(outputs, targets).item())
+            with torch.autocast(device_type='cuda', dtype=torch.bfloat16, enabled=self.args.bf16):
+                outputs = self.model(inputs)
+                loss_arr.append(self.criterion(outputs, targets).item())
             batch_count += self.args.B
 
         loss = np.mean(loss_arr)
@@ -111,8 +113,9 @@ class FedavgClient(BaseClient):
                 inputs, targets = inputs.to(self.args.device), targets.to(self.args.device)
                 inputs = self._apply_gpu_drift(inputs)
 
-                outputs = self.model(inputs)
-                loss = self.criterion(outputs, targets)
+                with torch.autocast(device_type='cuda', dtype=torch.bfloat16, enabled=self.args.bf16):
+                    outputs = self.model(inputs)
+                    loss = self.criterion(outputs, targets)
 
                 optimizer.zero_grad(set_to_none=True)
                 loss.backward()
@@ -140,8 +143,9 @@ class FedavgClient(BaseClient):
             inputs, targets = inputs.to(self.args.device), targets.to(self.args.device)
             inputs = self._apply_gpu_drift(inputs)
 
-            outputs = self.model(inputs)
-            loss = self.criterion(outputs, targets)
+            with torch.autocast(device_type='cuda', dtype=torch.bfloat16, enabled=self.args.bf16):
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, targets)
 
             mm.track(loss.item(), outputs, targets)
         else:

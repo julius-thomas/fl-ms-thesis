@@ -23,13 +23,14 @@ class FedproxClient(FedavgClient):
             for inputs, targets in self.train_loader:
                 inputs, targets = inputs.to(self.args.device), targets.to(self.args.device)
 
-                outputs = self.model(inputs)
-                loss = self.criterion(outputs, targets)
+                with torch.autocast(device_type='cuda', dtype=torch.bfloat16, enabled=self.args.bf16):
+                    outputs = self.model(inputs)
+                    loss = self.criterion(outputs, targets)
 
-                prox = 0.
-                for name, param in self.model.named_parameters():
-                    prox += (param - global_model.get_parameter(name)).norm(2)
-                loss += self.args.mu * (0.5 * prox)
+                    prox = 0.
+                    for name, param in self.model.named_parameters():
+                        prox += (param - global_model.get_parameter(name)).norm(2)
+                    loss += self.args.mu * (0.5 * prox)
 
                 optimizer.zero_grad(set_to_none=True)
                 loss.backward()

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 python3 main.py \
-    --exp_name "FedAvg_CheXpert_ResNet18_IID" --seed 42 --device cuda \
+    --exp_name "FedAvg_CheXpert_ResNet18_IID" --seed 42 --device cuda --bf16 \
     --dataset CheXpert --data_path ./external-data \
     --split_type iid --test_size 0.2 --rawsmpl 1.0 \
     --randhf 0.5 --randrot 10 \

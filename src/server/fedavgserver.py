@@ -386,8 +386,9 @@ class FedavgServer(BaseServer):
             inputs, targets = inputs.to(self.args.device), targets.to(self.args.device)
             inputs = self._apply_gpu_drift(inputs)
 
-            outputs = self.global_model(inputs)
-            loss = self.criterion(outputs, targets)
+            with torch.autocast(device_type='cuda', dtype=torch.bfloat16, enabled=self.args.bf16):
+                outputs = self.global_model(inputs)
+                loss = self.criterion(outputs, targets)
 
             mm.track(loss.item(), outputs, targets)
         else:
