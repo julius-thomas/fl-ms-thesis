@@ -7,6 +7,8 @@
 #SBATCH --time=18:00:00
 #SBATCH --output=slurm/out/slurm-%j.out
 #SBATCH --error=slurm/err/slurm-%j.err
+#SBATCH --mail-user=nsw510@alumni.ku.dk
+#SBATCH --mail-type=FAIL
 
 # Usage: sbatch commands/submit_a100.sh commands/chexpert/explore/runs/iid.sh
 
