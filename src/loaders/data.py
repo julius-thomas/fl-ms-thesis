@@ -217,6 +217,10 @@ def load_dataset(args):
         chexpert_root = os.path.join(args.data_path, 'CheXpert')
         raw_train, raw_test, args = fetch_chexpert(args=args, root=chexpert_root, transforms=transforms)
 
+    elif args.dataset == 'MIMIC4':
+        _check_and_raise_error(args.split_type, 'pre', 'split scenario')
+        raw_train, raw_test, args = fetch_mimic4(args=args, root=args.data_path)
+
     else: # x) for a dataset with no support yet or incorrectly entered...
         err = f'[LOAD] Dataset `{args.dataset}` is not supported or seems incorrectly entered... please check!'
         logger.exception(err)

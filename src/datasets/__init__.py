@@ -6,3 +6,4 @@ from .cover import fetch_cover
 from .gleam import fetch_gleam
 from .speechcommands import fetch_speechcommands
 from .chexpert import fetch_chexpert
+from .mimic4 import fetch_mimic4
