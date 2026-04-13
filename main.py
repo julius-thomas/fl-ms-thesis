@@ -94,6 +94,8 @@ if __name__ == "__main__":
     parser.add_argument('--data_path', help='path to save & read raw data', type=str, default='./data')
     parser.add_argument('--log_path', help='path to save logs', type=str, default='./log')
     parser.add_argument('--result_path', help='path to save results', type=str, default='./result')
+    parser.add_argument('--no_save_model', help='skip writing the final global model checkpoint (.pt) to --result_path', action='store_true')
+    parser.add_argument('--no_save_results', help='skip writing the final results JSON to --result_path', action='store_true')
     parser.add_argument('--use_tb', help='use TensorBoard for log tracking (if passed)', action='store_true')
     parser.add_argument('--tb_port', help='TensorBoard port number (valid only if `use_tb`)', type=int, default=6006)
     parser.add_argument('--tb_host', help='TensorBoard host address (valid only if `use_tb`)', type=str, default='0.0.0.0')

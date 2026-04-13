@@ -572,11 +572,18 @@ class FedavgServer(BaseServer):
     def finalize(self):
         """Save results.
         """
-        logger.info(f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] Save results and the global model checkpoint!')
-        with open(os.path.join(self.args.result_path, f'{self.args.exp_name}.json'), 'w', encoding='utf8') as result_file: # save results
-            results = {key: value for key, value in self.results.items()}
-            json.dump(results, result_file, indent=4)
-        torch.save(self.global_model.state_dict(), os.path.join(self.args.result_path, f'{self.args.exp_name}.pt')) # save model checkpoint
+        save_results = not getattr(self.args, 'no_save_results', False)
+        save_model = not getattr(self.args, 'no_save_model', False)
+        logger.info(
+            f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] '
+            f'Finalize: save_results={save_results}, save_model={save_model}.'
+        )
+        if save_results:
+            with open(os.path.join(self.args.result_path, f'{self.args.exp_name}.json'), 'w', encoding='utf8') as result_file:
+                results = {key: value for key, value in self.results.items()}
+                json.dump(results, result_file, indent=4)
+        if save_model:
+            torch.save(self.global_model.state_dict(), os.path.join(self.args.result_path, f'{self.args.exp_name}.pt'))
         self.writer.close()
         logger.info(f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] ...finished federated learning!')
         if self.args.use_tb:
