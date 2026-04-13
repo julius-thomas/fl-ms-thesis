@@ -52,11 +52,7 @@ class FedavgClient(BaseClient):
 
     def _create_dataloader(self, dataset, shuffle):
         pin = 'cuda' in self.args.device
-        nw = int(getattr(self.args, 'num_workers', 0))
-        # persistent_workers=True keeps workers alive across `next(iter(loader))` calls, which
-        # prevents fork/teardown churn in active-sampling bursts (many short get_loss calls).
-        extra = dict(num_workers=nw, prefetch_factor=2, persistent_workers=True) if nw > 0 else {}
-        return torch.utils.data.DataLoader(dataset=dataset, batch_size=self.batch_size, shuffle=shuffle, pin_memory=pin, **extra)
+        return torch.utils.data.DataLoader(dataset=dataset, batch_size=self.batch_size, shuffle=shuffle, pin_memory=pin, num_workers=0)
 
     def _apply_gpu_drift(self, x):
         """Apply Gaussian blur drift on GPU tensors."""

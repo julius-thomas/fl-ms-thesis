@@ -10,4 +10,3 @@ python3 main.py \
     --algorithm fedavg --eval_fraction 1 --eval_type both --eval_every 1 --eval_metrics mlacc mlauroc \
     --K 50 --R 100 --E 3 --C 0.2 --B 16 --beta1 0 \
     --optimizer Adam --lr 0.0001 --lr_decay 0.99 --lr_decay_step 10 --criterion BCEWithLogitsLoss \
-    --num_workers 2

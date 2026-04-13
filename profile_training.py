@@ -24,7 +24,6 @@ parser.add_argument('--rawsmpl', type=float, default=1.0)
 parser.add_argument('--batch_size', type=int, default=16)
 parser.add_argument('--bf16', action='store_true')
 parser.add_argument('--data_path', type=str, default='./external-data')
-parser.add_argument('--num_workers', type=int, default=-1, help='-1 = auto (4 on cuda, 0 otherwise)')
 args = parser.parse_args()
 
 DEVICE = args.device
@@ -45,13 +44,9 @@ ds = CheXpertDataset(
     raw_fraction=args.rawsmpl,
 )
 ds = CheXpertWrapper(ds, 'CHEXPERT', 'CLIENT')
-nw = args.num_workers if args.num_workers >= 0 else (4 if 'cuda' in DEVICE else 0)
 loader = torch.utils.data.DataLoader(ds, batch_size=args.batch_size, shuffle=True,
                                       pin_memory='cuda' in DEVICE,
-                                      num_workers=nw,
-                                      prefetch_factor=2 if nw > 0 else None,
-                                      persistent_workers=nw > 0)
-print(f'num_workers={nw}, persistent_workers={nw > 0}')
+                                      num_workers=0)
 print(f'Dataset: {len(ds)} samples, {len(loader)} batches')
 print(f'Device: {DEVICE}, bf16: {args.bf16}, hidden_size: {args.hidden_size}')
 

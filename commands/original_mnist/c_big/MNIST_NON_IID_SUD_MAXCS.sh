@@ -12,5 +12,4 @@ python3 main.py \
     --optimizer SGD --lr 0.1 --lr_decay 1 --lr_decay_step 25 --criterion CrossEntropyLoss \
     --concept_drift --drift_mode sudden --drift_start 40 --drift_duration 20 \
     --active_sampling --sampling_fraction 0.25 --sampling_type max \
-    --num_workers 0 \
     --no_save_model --no_save_results
