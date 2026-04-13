@@ -13,4 +13,5 @@ python3 main.py \
     --concept_drift --drift_mode sudden --drift_start 40 --drift_duration 20 \
     --active_sampling --sampling_fraction 0.5 --sampling_type max \
     --candidate_sampling ucb --ucb_c 1.0 \
+    --num_workers 0 \
     --no_save_model --no_save_results
