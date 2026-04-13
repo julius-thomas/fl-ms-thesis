@@ -81,6 +81,8 @@ if __name__ == "__main__":
     parser.add_argument('--sampling_fraction', help='fraction of sampled clients used for active sampling', type=float, default=0.3)
     parser.add_argument('--sampling_type', help='type of client selection; `max` (top-K by loss), `stoch` (Boltzmann softmax)', type=str, default='max')
     parser.add_argument('--temp', help='Boltzmann temperature for stochastic sampling', type=float, default=0.5)
+    parser.add_argument('--candidate_sampling', help='how to form the initial candidate set before active sampling; `uniform` (random) or `ucb` (UCB1 over all clients)', type=str, default='uniform', choices=['uniform', 'ucb'])
+    parser.add_argument('--ucb_c', help='UCB exploration constant (only used when --candidate_sampling ucb)', type=float, default=1.0)
 
     #####################
     # Default arguments #

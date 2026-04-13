@@ -1,6 +1,7 @@
 import os
 import gc
 import json
+import math
 import torch
 import random
 import logging
@@ -45,6 +46,19 @@ class FedavgServer(BaseServer):
 
         # concept drift state
         self.drift_std = 0.0
+
+        # UCB candidate-sampling state (only used when --candidate_sampling ucb)
+        if getattr(self.args, 'candidate_sampling', 'uniform') == 'ucb':
+            if not getattr(self.args, 'active_sampling', False):
+                logger.warning(
+                    f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] '
+                    f'`--candidate_sampling ucb` requires `--active_sampling`; falling back to uniform.'
+                )
+                self.args.candidate_sampling = 'uniform'
+            else:
+                K = int(self.args.K)
+                self.ucb_n = np.zeros(K, dtype=np.int64)     # pull counts (candidate-set inclusions)
+                self.ucb_mu = np.zeros(K, dtype=np.float64)  # running mean loss per client
 
     def _init_model(self, model):
         logger.info(f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] Initialize a model!')
@@ -356,6 +370,51 @@ class FedavgServer(BaseServer):
         if start <= self.round <= (start + dur):
             self.drift_std = max(0.0, min(1.0, (self.round - start) / dur))
 
+    def _ucb_sample_candidates(self):
+        """Pick the candidate set via UCB1 over all K clients.
+
+        Score: mu_hat_i + c * sqrt(ln t / n_i), where t = sum(n_i).
+        Unvisited clients (n_i = 0) are drafted first (optimistic init), with random
+        tie-breaking. Returns a sorted list of client ids of size max(int(C*K), 1).
+        """
+        K = int(self.args.K)
+        m = max(int(self.args.C * K), 1)
+
+        unvisited = np.where(self.ucb_n == 0)[0]
+        if len(unvisited) >= m:
+            # cold-start rotation: pick m unvisited at random
+            chosen = np.random.choice(unvisited, size=m, replace=False)
+            logger.info(
+                f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] '
+                f'[Round: {str(self.round).zfill(4)}] UCB cold-start: '
+                f'picked {m} unvisited of {len(unvisited)} remaining.'
+            )
+            return sorted(chosen.tolist())
+
+        # steady state: all unvisited (if any) + top-(m - |unvisited|) visited by UCB score
+        visited = np.where(self.ucb_n > 0)[0]
+        t = float(self.ucb_n.sum())
+        log_t = math.log(max(t, 1.0))
+        bonus = self.args.ucb_c * np.sqrt(log_t / self.ucb_n[visited])
+        scores = self.ucb_mu[visited] + bonus
+
+        need = m - len(unvisited)
+        top_local = np.argsort(-scores)[:need]
+        chosen = np.concatenate([unvisited, visited[top_local]])
+        logger.info(
+            f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] '
+            f'[Round: {str(self.round).zfill(4)}] UCB candidate: '
+            f'{len(unvisited)} unvisited + {need} by UCB score (t={int(t)}, c={self.args.ucb_c}).'
+        )
+        return sorted(chosen.tolist())
+
+    def _update_ucb_state(self, client_losses):
+        """Update running mean mu_hat_i and pull count n_i from fresh loss queries."""
+        for cid, loss in client_losses.items():
+            n = int(self.ucb_n[cid])
+            self.ucb_mu[cid] = (self.ucb_mu[cid] * n + float(loss)) / (n + 1)
+            self.ucb_n[cid] = n + 1
+
     def _get_highest_loss(self, client_losses):
         """Select clients by loss: 'max' picks top-K, 'stoch' uses Boltzmann softmax sampling."""
         X = int(len(client_losses) * self.args.sampling_fraction)
@@ -442,7 +501,11 @@ class FedavgServer(BaseServer):
         #################
         # Client Update #
         #################
-        selected_ids = self._sample_clients() # randomly select clients
+        # candidate sampling: uniform (default) or UCB1 over all clients
+        if getattr(self.args, 'candidate_sampling', 'uniform') == 'ucb' and getattr(self.args, 'active_sampling', False):
+            selected_ids = self._ucb_sample_candidates()
+        else:
+            selected_ids = self._sample_clients() # randomly select clients
 
         ######################
         # Active Sampling    #
@@ -453,6 +516,9 @@ class FedavgServer(BaseServer):
             for cid in selected_ids:
                 if self.clients[cid].model is not None:
                     self.clients[cid].model = None
+            # update UCB state from fresh loss queries (before final selection)
+            if getattr(self.args, 'candidate_sampling', 'uniform') == 'ucb':
+                self._update_ucb_state(client_losses)
             selected_ids = self._get_highest_loss(client_losses)
 
         ########################
