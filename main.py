@@ -207,11 +207,12 @@ if __name__ == "__main__":
     # parse arguments
     args = parser.parse_args()
     
-    # make path for saving losses & metrics & models
+    # make path for saving losses & metrics & models (skip entirely if nothing will be written)
     curr_time = time.strftime("%y%m%d_%H%M%S", time.localtime())
     args.result_path = os.path.join(args.result_path, f'{args.exp_name}_{curr_time}')
-    if not os.path.exists(args.result_path):
-        os.makedirs(args.result_path)
+    if not (args.no_save_model and args.no_save_results):
+        if not os.path.exists(args.result_path):
+            os.makedirs(args.result_path)
         
     # make path for saving logs
     if not os.path.exists(args.log_path):
