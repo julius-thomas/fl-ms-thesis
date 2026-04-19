@@ -71,6 +71,9 @@ class Auroc(BaseMetric):
         scores = torch.cat(self.scores).cpu().float().softmax(-1).numpy()
         answers = torch.cat(self.answers).cpu().float().numpy()
         num_classes = scores.shape[-1]
+        if num_classes == 2:
+            # sklearn's binary AUROC requires 1D positive-class probabilities
+            return roc_auc_score(answers, scores[:, 1])
         return roc_auc_score(answers, scores, average='weighted', multi_class='ovr', labels=np.arange(num_classes))
 
 class Auprc(BaseMetric): # only for binary classification

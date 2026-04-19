@@ -20,6 +20,21 @@ from .baseserver import BaseServer
 logger = logging.getLogger(__name__)
 
 
+def _find_attr(obj, attr):
+    """Walk through Subset / SubsetWrapper layers until `attr` is found."""
+    seen = set()
+    while not hasattr(obj, attr):
+        if id(obj) in seen:
+            raise AttributeError(f'could not locate `{attr}` on {obj!r}')
+        seen.add(id(obj))
+        if hasattr(obj, 'subset'):
+            obj = obj.subset
+        elif hasattr(obj, 'dataset'):
+            obj = obj.dataset
+        else:
+            raise AttributeError(f'could not locate `{attr}` on {obj!r}')
+    return obj
+
 
 class FedavgServer(BaseServer):
     def __init__(self, args, writer, server_dataset, client_datasets, model):
@@ -357,6 +372,31 @@ class FedavgServer(BaseServer):
             self.clients[0].training_set.subset.dataset.dataset.dataset.sudden_drift = True
             if self.args.eval_type != 'local':
                 self.server_dataset.dataset.sudden_drift = True
+        elif self.args.drift_mode == 'custom' and self.args.drift_start == self.round:
+            self._activate_custom_drift()
+
+    def _activate_custom_drift(self):
+        """Dataset-specific, real-world drift activation.
+
+        MIMIC4 : flip `drift_active=True` on the shared underlying dataset
+                 so that every client (and the global eval set) starts
+                 serving the ICD-10 era feature view instead of ICD-9.
+        """
+        if self.args.dataset == 'MIMIC4':
+            raw_train = _find_attr(self.clients[0].training_set, 'drift_active')
+            raw_train.drift_active = True
+            if getattr(self.args, 'eval_type', 'local') != 'local':
+                raw_eval = _find_attr(self.server_dataset, 'drift_active')
+                raw_eval.drift_active = True
+            logger.info(
+                f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] '
+                f'[Round: {str(self.round).zfill(4)}] Custom drift activated '
+                f'(ICD-9 -> ICD-10 feature view switch).'
+            )
+            return
+        raise NotImplementedError(
+            f'`custom` drift is not implemented for dataset `{self.args.dataset}`.'
+        )
 
     def _update_drift_strength(self):
         """Compute incremental drift strength (0..1) based on current round."""

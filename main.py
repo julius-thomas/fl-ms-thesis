@@ -72,7 +72,7 @@ if __name__ == "__main__":
     parser.add_argument('--concept_drift', help='introduce concept drift to the selected dataset', action='store_true')
     parser.add_argument('--drift_duration', help='duration of the concept drift in rounds', type=int, default=50)
     parser.add_argument('--drift_start', help='round number in which the concept drift gets initiated', type=int, default=50)
-    parser.add_argument('--drift_mode', help='type of concept drift; `soft` (mild blur), `hard` (strong blur), `sudden` (label swap)', type=str, default='hard')
+    parser.add_argument('--drift_mode', help='type of concept drift; `soft` (mild blur), `hard` (strong blur), `sudden` (label swap), `custom` (dataset-specific real-world drift)', type=str, default='hard')
 
     #####################
     #  Active sampling  #
@@ -127,8 +127,9 @@ if __name__ == "__main__":
     - `unbalanced`: unbalanced in sample counts across clients,
     - `patho`: pathological non-IID split scenario proposed in (McMahan et al., 2016),
     - `diri`: Dirichlet distribution-based split scenario proposed in (Hsu et al., 2019),
-    - `pre`: pre-defined data split scenario
-    ''', type=str, choices=['iid', 'unbalanced', 'patho', 'diri', 'pre'], required=True)
+    - `pre`: pre-defined data split scenario,
+    - `custom`: dataset-specific real-world heterogeneity (e.g. Dirichlet-over-care-unit for MIMIC4)
+    ''', type=str, choices=['iid', 'unbalanced', 'patho', 'diri', 'pre', 'custom'], required=True)
     parser.add_argument('--mincls', help='the minimum number of distinct classes per client (valid only if `split_type` is `patho` or `diri`)', type=int, default=2)
     parser.add_argument('--cncntrtn', help='a concentration parameter for Dirichlet distribution (valid only if `split_type` is `diri`)', type=float, default=0.1)
     

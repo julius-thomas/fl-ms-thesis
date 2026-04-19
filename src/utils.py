@@ -184,8 +184,8 @@ def stratified_split(raw_dataset, test_size):
 def check_args(args):
     # check concept drift mode
     if getattr(args, 'concept_drift', False):
-        if args.drift_mode not in ('soft', 'hard', 'sudden'):
-            err = f'`{args.drift_mode}` is not a valid drift mode (expected: soft, hard, sudden)'
+        if args.drift_mode not in ('soft', 'hard', 'sudden', 'custom'):
+            err = f'`{args.drift_mode}` is not a valid drift mode (expected: soft, hard, sudden, custom)'
             logger.exception(err)
             raise AssertionError(err)
 

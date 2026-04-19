@@ -177,6 +177,85 @@ def simulate_split(args, dataset):
         # construct a hashmap
         split_map = {k: assigned_indices[k] for k in range(args.K)}
         return split_map
+    # Dataset-specific real-world heterogeneity
+    elif args.split_type == 'custom':
+        return _custom_split(args, dataset)
+
     # `leaf` - LEAF benchmark (Caldas et al., 2018); `fedvis` - Federated Vision Datasets (Hsu, Qi and Brown, 2020)
-    elif args.split_type in ['leaf']: 
+    elif args.split_type in ['leaf']:
         logger.info('[SIMULATE] Use pre-defined split!')
+
+
+def _custom_split(args, dataset):
+    """Dispatch to the dataset-specific `custom` heterogeneous split.
+
+    MIMIC4  : Dirichlet over `first_careunit` (each client's mix of ICUs
+              is drawn from Dir(alpha), producing a continuous spectrum of
+              care-unit concentration across clients).
+    """
+    if args.dataset == 'MIMIC4':
+        return _mimic_dirichlet_by_careunit(args, dataset)
+    raise NotImplementedError(
+        f'[SIMULATE] `custom` split is not implemented for dataset `{args.dataset}`.'
+    )
+
+
+def _mimic_dirichlet_by_careunit(args, dataset):
+    """Dirichlet(alpha) partition of ICU admissions by `first_careunit`.
+
+    For each care unit c we sample q_c ~ Dir(alpha * 1_K) and distribute
+    that unit's records across the K clients proportional to q_c.  Small
+    alpha (e.g. 0.3) yields strongly skewed mixes; large alpha approaches
+    uniform.  The `--cncntrtn` flag controls alpha.
+    """
+    care_units = getattr(dataset, 'care_units', None)
+    if care_units is None:
+        raise AttributeError(
+            '[SIMULATE] MIMIC4 dataset is missing `care_units`; '
+            'cannot build custom care-unit split.'
+        )
+    care_units = np.asarray(care_units)
+    unique_cus, inverse = np.unique(care_units, return_inverse=True)
+    K, alpha = int(args.K), float(args.cncntrtn)
+    rng = np.random.default_rng(args.seed)
+
+    assigned = [[] for _ in range(K)]
+    for c_idx, cu in enumerate(unique_cus):
+        idx_c = np.where(inverse == c_idx)[0]
+        rng.shuffle(idx_c)
+        q = rng.dirichlet([alpha] * K)
+        cuts = np.round(np.cumsum(q) * len(idx_c)).astype(int)
+        cuts[-1] = len(idx_c)
+        prev = 0
+        for k in range(K):
+            assigned[k].extend(idx_c[prev:cuts[k]].tolist())
+            prev = cuts[k]
+
+    # Drop empty clients by redistributing a few samples from the largest.
+    sizes = [len(a) for a in assigned]
+    for k in range(K):
+        if sizes[k] == 0:
+            donor = int(np.argmax(sizes))
+            share = max(1, sizes[donor] // 50)
+            assigned[k].extend(assigned[donor][-share:])
+            del assigned[donor][-share:]
+            sizes = [len(a) for a in assigned]
+
+    # Log the per-client care-unit mix so severity can be sanity-checked.
+    logger.info(
+        '[SIMULATE] [MIMIC4] custom split: Dir(alpha=%.3f) over %d care units '
+        '(%s) across %d clients.',
+        alpha, len(unique_cus), ', '.join(map(str, unique_cus)), K,
+    )
+    for k in range(K):
+        cu_counts = np.bincount(inverse[assigned[k]], minlength=len(unique_cus))
+        top = np.argsort(-cu_counts)[:3]
+        mix = ', '.join(
+            f'{unique_cus[i]}={cu_counts[i]}' for i in top if cu_counts[i] > 0
+        )
+        logger.debug(
+            '[SIMULATE] [MIMIC4] client %03d: n=%d | top: %s',
+            k, len(assigned[k]), mix,
+        )
+
+    return {k: np.asarray(assigned[k], dtype=np.int64) for k in range(K)}
