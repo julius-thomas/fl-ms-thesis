@@ -8,7 +8,7 @@
 python3 main.py \
     --exp_name "FMNIST_NON_IID_SUD_MAXCS${EXP_SUFFIX}" --seed ${SEED} --device cuda \
     --dataset FashionMNIST \
-    --split_type diri --test_size 0 --cncntrtn 0.3 --mincls 2 \
+    --split_type diri --test_size 0.2 --cncntrtn 0.3 --mincls 2 \
     --model_name TwoCNN --resize 28 --hidden_size 200 \
     --algorithm fedavg --eval_fraction 1 --eval_type both --eval_every 1 --eval_metrics acc1 precision recall \
     --K 100 --R 100 --E 3 --C 0.4 --B 10 \
