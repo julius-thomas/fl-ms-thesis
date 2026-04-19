@@ -189,12 +189,18 @@ def simulate_split(args, dataset):
 def _custom_split(args, dataset):
     """Dispatch to the dataset-specific `custom` heterogeneous split.
 
-    MIMIC4  : Dirichlet over `first_careunit` (each client's mix of ICUs
-              is drawn from Dir(alpha), producing a continuous spectrum of
-              care-unit concentration across clients).
+    MIMIC4   : Dirichlet over `first_careunit` (each client's mix of ICUs
+               is drawn from Dir(alpha), producing a continuous spectrum of
+               care-unit concentration across clients).
+    CheXpert : Dirichlet over `has_lateral` (each client's mix of samples
+               with vs. without a lateral twin is drawn from Dir(alpha);
+               combined with the lateral-swap drift, this yields a per-client
+               drift-severity gradient).
     """
     if args.dataset == 'MIMIC4':
         return _mimic_dirichlet_by_careunit(args, dataset)
+    if args.dataset == 'CheXpert':
+        return _chexpert_dirichlet_by_pairing(args, dataset)
     raise NotImplementedError(
         f'[SIMULATE] `custom` split is not implemented for dataset `{args.dataset}`.'
     )
@@ -256,6 +262,72 @@ def _mimic_dirichlet_by_careunit(args, dataset):
         logger.debug(
             '[SIMULATE] [MIMIC4] client %03d: n=%d | top: %s',
             k, len(assigned[k]), mix,
+        )
+
+    return {k: np.asarray(assigned[k], dtype=np.int64) for k in range(K)}
+
+
+def _chexpert_dirichlet_by_pairing(args, dataset):
+    """Dirichlet(alpha) partition of CheXpert frontal samples by lateral-twin.
+
+    The binary axis `has_lateral` (True iff the sample's study also contains
+    a lateral view) is the sole non-IID dimension.  For each group g in
+    {paired, unpaired} we sample q_g ~ Dir(alpha * 1_K) and distribute that
+    group's records across the K clients proportional to q_g.  Small alpha
+    yields strongly skewed mixes (some clients nearly all-paired, others
+    nearly all-unpaired); large alpha approaches uniform.  Because lateral
+    pairing is the drift predicate, the resulting paired-fraction gradient
+    across clients is also the effective drift-severity gradient after
+    `drift_start`.
+    """
+    has_lateral = getattr(dataset, 'has_lateral', None)
+    if has_lateral is None:
+        raise AttributeError(
+            '[SIMULATE] CheXpert dataset is missing `has_lateral`; '
+            'cannot build custom pairing-based split.'
+        )
+    has_lateral = np.asarray(has_lateral, dtype=bool)
+    groups = has_lateral.astype(np.int64)  # 0 = unpaired, 1 = paired
+    K, alpha = int(args.K), float(args.cncntrtn)
+    rng = np.random.default_rng(args.seed)
+
+    assigned = [[] for _ in range(K)]
+    for g_val, g_name in [(0, 'unpaired'), (1, 'paired')]:
+        idx_g = np.where(groups == g_val)[0]
+        if len(idx_g) == 0:
+            continue
+        rng.shuffle(idx_g)
+        q = rng.dirichlet([alpha] * K)
+        cuts = np.round(np.cumsum(q) * len(idx_g)).astype(int)
+        cuts[-1] = len(idx_g)
+        prev = 0
+        for k in range(K):
+            assigned[k].extend(idx_g[prev:cuts[k]].tolist())
+            prev = cuts[k]
+
+    # Drop empty clients by redistributing a few samples from the largest.
+    sizes = [len(a) for a in assigned]
+    for k in range(K):
+        if sizes[k] == 0:
+            donor = int(np.argmax(sizes))
+            share = max(1, sizes[donor] // 50)
+            assigned[k].extend(assigned[donor][-share:])
+            del assigned[donor][-share:]
+            sizes = [len(a) for a in assigned]
+
+    total_paired = int(has_lateral.sum())
+    total = len(has_lateral)
+    logger.info(
+        '[SIMULATE] [CHEXPERT] custom split: Dir(alpha=%.3f) over {unpaired, paired} '
+        '(global paired share %.1f%% = %d/%d) across %d clients.',
+        alpha, 100.0 * total_paired / max(1, total), total_paired, total, K,
+    )
+    for k in range(K):
+        n = len(assigned[k])
+        n_paired = int(has_lateral[np.asarray(assigned[k], dtype=np.int64)].sum()) if n else 0
+        logger.debug(
+            '[SIMULATE] [CHEXPERT] client %03d: n=%d | paired=%d (%.1f%%)',
+            k, n, n_paired, 100.0 * n_paired / max(1, n),
         )
 
     return {k: np.asarray(assigned[k], dtype=np.int64) for k in range(K)}

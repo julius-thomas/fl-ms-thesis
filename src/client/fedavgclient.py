@@ -133,6 +133,13 @@ class FedavgClient(BaseClient):
         if self.args.train_only: # `args.test_size` == 0
             return {'loss': -1, 'metrics': {'none': -1}}
 
+        # non-IID partitions can assign a client ~0 samples; after the train/test
+        # split its test set can be empty. Skip the loop entirely to avoid a
+        # div-by-zero inside `aggregate`.
+        if len(self.test_set) == 0:
+            nan = float('nan')
+            return {'loss': nan, 'metrics': {m: nan for m in self.args.eval_metrics}}
+
         mm = MetricManager(self.args.eval_metrics)
         self.model.eval()
         self.model.to(self.args.device)

@@ -378,9 +378,12 @@ class FedavgServer(BaseServer):
     def _activate_custom_drift(self):
         """Dataset-specific, real-world drift activation.
 
-        MIMIC4 : flip `drift_active=True` on the shared underlying dataset
-                 so that every client (and the global eval set) starts
-                 serving the ICD-10 era feature view instead of ICD-9.
+        MIMIC4   : flip `drift_active=True` on the shared underlying dataset
+                   so that every client (and the global eval set) starts
+                   serving the ICD-10 era feature view instead of ICD-9.
+        CheXpert : flip `drift_active=True` so every sample whose study also
+                   has a lateral view starts serving the lateral image
+                   instead of the frontal one.
         """
         if self.args.dataset == 'MIMIC4':
             raw_train = _find_attr(self.clients[0].training_set, 'drift_active')
@@ -392,6 +395,18 @@ class FedavgServer(BaseServer):
                 f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] '
                 f'[Round: {str(self.round).zfill(4)}] Custom drift activated '
                 f'(ICD-9 -> ICD-10 feature view switch).'
+            )
+            return
+        if self.args.dataset == 'CheXpert':
+            raw_train = _find_attr(self.clients[0].training_set, 'drift_active')
+            raw_train.drift_active = True
+            if getattr(self.args, 'eval_type', 'local') != 'local':
+                raw_eval = _find_attr(self.server_dataset, 'drift_active')
+                raw_eval.drift_active = True
+            logger.info(
+                f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] '
+                f'[Round: {str(self.round).zfill(4)}] Custom drift activated '
+                f'(frontal -> lateral view switch for paired studies).'
             )
             return
         raise NotImplementedError(

@@ -363,7 +363,7 @@ class MetricManager:
 
     def aggregate(self, total_len, curr_step=None):
         running_figures = {name: module.summarize() for name, module in self.metric_funcs.items()}
-        running_figures['loss'] = self.figures['loss'] / total_len
+        running_figures['loss'] = self.figures['loss'] / total_len if total_len > 0 else float('nan')
         if curr_step is not None:
             self._results[curr_step] = {
                 'loss': running_figures['loss'], 

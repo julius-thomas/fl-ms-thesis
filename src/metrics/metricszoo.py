@@ -306,6 +306,8 @@ class Mlacc(BaseMetric):
         self.answers.append(t)
 
     def summarize(self):
+        if not self.scores:
+            return float('nan')
         scores = torch.cat(self.scores).cpu().float().sigmoid().numpy()
         answers = torch.cat(self.answers).cpu().float().numpy()
         preds = (scores >= 0.5).astype(float)
@@ -325,6 +327,8 @@ class Mlauroc(BaseMetric):
         self.answers.append(t)
 
     def summarize(self):
+        if not self.scores:
+            return float('nan')
         scores = torch.cat(self.scores).cpu().float().sigmoid().numpy()
         answers = torch.cat(self.answers).cpu().float().numpy()
         # per-label AUROC, skip labels with single class
