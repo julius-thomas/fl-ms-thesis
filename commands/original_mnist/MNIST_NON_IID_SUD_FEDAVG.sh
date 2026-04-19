@@ -3,8 +3,11 @@
 # FedAvg baseline on MNIST, pathological non-IID, sudden label-swap drift (rounds 40-60).
 # C=0.1 (10/100 clients trained per round, uniformly sampled). Identical to c_small/FEDAVG
 # — baseline held at 10 trained clients to match the active-sampling variants' training count.
+: "${SEED:=42}"
+: "${EXP_SUFFIX:=}"
+
 python3 main.py \
-    --exp_name MNIST_NON_IID_SUD_FEDAVG_ --seed 42 --device cuda \
+    --exp_name "MNIST_NON_IID_SUD_FEDAVG${EXP_SUFFIX}" --seed ${SEED} --device cuda \
     --dataset MNIST \
     --split_type patho --test_size 0 \
     --model_name TwoCNN --resize 28 --hidden_size 200 \

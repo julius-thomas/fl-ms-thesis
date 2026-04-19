@@ -2,8 +2,11 @@
 
 # Max client selection (active sampling, uniform candidate set) on MNIST non-IID sudden drift.
 # Candidate set big: C=0.4 (40/100 candidates), sampling_fraction=0.25 → train 10 highest-loss per round.
+: "${SEED:=42}"
+: "${EXP_SUFFIX:=}"
+
 python3 main.py \
-    --exp_name MNIST_NON_IID_SUD_MAXCS --seed 42 --device cuda \
+    --exp_name "MNIST_NON_IID_SUD_MAXCS${EXP_SUFFIX}" --seed ${SEED} --device cuda \
     --dataset MNIST \
     --split_type patho --test_size 0 \
     --model_name TwoCNN --resize 28 --hidden_size 200 \
