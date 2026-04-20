@@ -168,7 +168,7 @@ def simulate_split(args, dataset):
                     if required_counts[idx] == 0: continue
                     sampled_indices = class_indices[required_class][:required_counts[idx]]
                     curr_indices.append(sampled_indices)
-                    class_indices[required_class] = class_indices[required_class][:required_counts[idx]]
+                    class_indices[required_class] = class_indices[required_class][required_counts[idx]:]
                 satisfied_counts += sum(required_counts)
             
             ### when enough samples are collected, go to next clients!

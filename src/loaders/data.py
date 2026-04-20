@@ -91,9 +91,9 @@ def load_dataset(args):
     # method to construct per-client dataset
     def _construct_dataset(raw_train, idx, sample_indices):
         subset = torch.utils.data.Subset(raw_train, sample_indices)
-        if args.num_classes is None: # regression
+        if args.num_classes is None or args.test_size == 0: # regression, or no holdout requested
             training_set, test_set = torch.utils.data.random_split(subset, [len(subset) - int(len(subset) * args.test_size), int(len(subset) * args.test_size)])
-        else: # classification
+        else: # classification with nonzero holdout
             training_set, test_set = stratified_split(subset, args.test_size)
             
         traininig_set = SubsetWrapper(training_set, f'< {str(idx).zfill(8)} > (train)')

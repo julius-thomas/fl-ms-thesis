@@ -28,6 +28,7 @@ external-data/
 slurm/
 plots/pdf
 plots/tb_objects
+helpers/
 
 # IDE
 .vscode/
