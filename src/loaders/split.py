@@ -120,7 +120,7 @@ def simulate_split(args, dataset):
     
     # Non-IID split proposed in (Hsu et al., 2019); simulation of non-IID split scenario using Dirichlet distribution
     elif args.split_type == 'diri':
-        MIN_SAMPLES = int(1 / args.test_size)
+        MIN_SAMPLES = int(1 / args.test_size) if args.test_size > 0 else 0
 
         # get indices by class labels
         total_counts = len(dataset.targets)
