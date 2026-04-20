@@ -125,7 +125,6 @@ def simulate_split(args, dataset):
         # get indices by class labels
         total_counts = len(dataset.targets)
         _, unique_inverse, unique_counts = np.unique(dataset.targets, return_inverse=True, return_counts=True)
-        class_indices = np.split(np.argsort(unique_inverse), np.cumsum(unique_counts[:-1]))
 
         # calculate ideal samples counts per client
         ideal_counts = len(dataset.targets) // args.K
@@ -134,45 +133,62 @@ def simulate_split(args, dataset):
             logger.exception(err)
             raise Exception(err)
 
-        # split dataset
-        ## define temporary container
-        assigned_indices = []
+        # `satisfied_counts` tracks requested (not obtained) samples, so late
+        # clients can still end up with 0 once class pools drain. Retry the
+        # whole split with a fresh RNG draw until every client is non-empty.
+        MAX_ATTEMPTS = 100
+        for attempt in range(MAX_ATTEMPTS):
+            class_indices = np.split(np.argsort(unique_inverse), np.cumsum(unique_counts[:-1]))
+            assigned_indices = []
 
-        ## NOTE: it is possible that not all samples be consumed, as it is intended for satisfying each clients having at least `MIN_SAMPLES` samples per class
-        for k in TqdmToLogger(range(args.K), logger=logger, desc='[SIMULATE] ...assigning to clients... '):
-            ### for current client of which index is `k`
-            curr_indices = []
-            satisfied_counts = 0
+            ## NOTE: it is possible that not all samples be consumed, as it is intended for satisfying each clients having at least `MIN_SAMPLES` samples per class
+            for k in TqdmToLogger(range(args.K), logger=logger, desc='[SIMULATE] ...assigning to clients... '):
+                ### for current client of which index is `k`
+                curr_indices = []
+                satisfied_counts = 0
 
-            ### ...until the number of samples close to ideal counts is filled
-            while satisfied_counts < ideal_counts:
-                ### define Dirichlet distribution of which prior distribution is an uniform distribution
-                diri_prior = np.random.uniform(size=args.num_classes)
-                
-                ### sample a parameter corresponded to that of categorical distribution
-                cat_param = np.random.dirichlet(alpha=args.cncntrtn * diri_prior)
+                ### ...until the number of samples close to ideal counts is filled
+                while satisfied_counts < ideal_counts:
+                    ### define Dirichlet distribution of which prior distribution is an uniform distribution
+                    diri_prior = np.random.uniform(size=args.num_classes)
 
-                ### try to sample by amount of `ideal_counts``
-                sampled = np.random.choice(args.num_classes, ideal_counts, p=cat_param)
+                    ### sample a parameter corresponded to that of categorical distribution
+                    cat_param = np.random.dirichlet(alpha=args.cncntrtn * diri_prior)
 
-                ### count per-class samples
-                unique, counts = np.unique(sampled, return_counts=True)
-                if len(unique) < args.mincls: 
-                    continue
-                
-                ### filter out sampled classes not having as much as `MIN_SAMPLES`
-                required_counts = counts * (counts > MIN_SAMPLES)
+                    ### try to sample by amount of `ideal_counts``
+                    sampled = np.random.choice(args.num_classes, ideal_counts, p=cat_param)
 
-                ### assign from population indices split by classes 
-                for idx, required_class in enumerate(unique):
-                    if required_counts[idx] == 0: continue
-                    sampled_indices = class_indices[required_class][:required_counts[idx]]
-                    curr_indices.append(sampled_indices)
-                    class_indices[required_class] = class_indices[required_class][required_counts[idx]:]
-                satisfied_counts += sum(required_counts)
-            
-            ### when enough samples are collected, go to next clients!
-            assigned_indices.append(np.concatenate(curr_indices))
+                    ### count per-class samples
+                    unique, counts = np.unique(sampled, return_counts=True)
+                    if len(unique) < args.mincls:
+                        continue
+
+                    ### filter out sampled classes not having as much as `MIN_SAMPLES`
+                    required_counts = counts * (counts > MIN_SAMPLES)
+
+                    ### assign from population indices split by classes
+                    for idx, required_class in enumerate(unique):
+                        if required_counts[idx] == 0: continue
+                        sampled_indices = class_indices[required_class][:required_counts[idx]]
+                        curr_indices.append(sampled_indices)
+                        class_indices[required_class] = class_indices[required_class][required_counts[idx]:]
+                    satisfied_counts += sum(required_counts)
+
+                ### when enough samples are collected, go to next clients!
+                assigned_indices.append(
+                    np.concatenate(curr_indices) if curr_indices else np.empty(0, dtype=np.int64)
+                )
+
+            empties = sum(1 for a in assigned_indices if len(a) == 0)
+            if empties == 0:
+                if attempt > 0:
+                    logger.info(f'[SIMULATE] diri split succeeded after {attempt + 1} attempts')
+                break
+            logger.warning(f'[SIMULATE] diri attempt {attempt + 1}: {empties} empty client(s), retrying')
+        else:
+            raise RuntimeError(
+                f'[SIMULATE] diri split failed to produce all-non-empty clients after {MAX_ATTEMPTS} attempts'
+            )
 
         # construct a hashmap
         split_map = {k: assigned_indices[k] for k in range(args.K)}
