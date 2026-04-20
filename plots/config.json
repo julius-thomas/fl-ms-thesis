@@ -1,0 +1,61 @@
+{
+  "plots": {
+    "fmnist_non_iid_sud_acc": {
+      "df_name": "fmnist_non_iid_sud_acc",
+      "source": {
+        "tag": "Server Acc1",
+        "lines": [
+          {
+            "name": "FedAvg",
+            "path": "~/ma-logs/FMNIST/FEDAVG",
+            "match": "FMNIST_NON_IID_SUD_FEDAVG_seed"
+          },
+          {
+            "name": "MAX-CS",
+            "path": "~/ma-logs/FMNIST/MAXCS",
+            "match": "FMNIST_NON_IID_SUD_MAXCS_seed"
+          },
+          {
+            "name": "UCB-CS",
+            "path": "~/ma-logs/FMNIST/UCBCS",
+            "match": "FMNIST_NON_IID_SUD_UCBCS_seed"
+          }
+        ]
+      },
+      "plot": {
+        "legend": ["FedAvg", "MAX-CS", "UCB-CS"],
+        "labels": {"x": "Round", "y": "Accuracy"},
+        "ylim": [0.5, 1]
+      }
+    },
+    "mnist_non_iid_sud_acc": {
+      "df_name": "mnist_non_iid_sud_acc",
+      "source": {
+        "tag": "Server Acc1",
+        "lines": [
+          {
+            "name": "FedAvg",
+            "path": "~/ma-logs/MNIST/FEDAVG",
+            "match": "MNIST_NON_IID_SUD_FEDAVG_seed"
+          },
+          {
+            "name": "MAX-CS",
+            "path": "~/ma-logs/MNIST/MAXCS",
+            "match": "MNIST_NON_IID_SUD_MAXCS_seed"
+          },
+          {
+            "name": "UCB-CS",
+            "path": "~/ma-logs/MNIST/UCBCS",
+            "match": "MNIST_NON_IID_SUD_UCBCS_seed"
+          }
+        ]
+      },
+      "plot": {
+        "legend": ["FedAvg", "MAX-CS", "UCB-CS"],
+        "labels": {"x": "Round", "y": "Accuracy"},
+        "ylim": [0, 1],
+        "scale": "exp"
+      }
+    }
+  }
+}

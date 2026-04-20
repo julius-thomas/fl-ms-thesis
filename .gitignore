@@ -26,6 +26,8 @@ log/
 result/
 external-data/
 slurm/
+plots/pdf
+plots/tb_objects
 
 # IDE
 .vscode/
@@ -33,3 +35,4 @@ slurm/
 *.swp
 *.swo
 .claude/
+

@@ -16,4 +16,5 @@ python3 main.py \
     --concept_drift --drift_mode sudden --drift_start 40 --drift_duration 20 \
     --active_sampling --sampling_fraction 0.25 --sampling_type stoch \
     --candidate_sampling ucb --ucb_c 1.0 \
+    --max_grad_norm 10 \
     --no_save_model --no_save_results

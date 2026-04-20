@@ -15,4 +15,5 @@ python3 main.py \
     --K 100 --R 100 --E 3 --C 0.1 --B 10 \
     --optimizer SGD --lr 0.1 --lr_decay 1 --lr_decay_step 25 --criterion CrossEntropyLoss \
     --concept_drift --drift_mode sudden --drift_start 40 --drift_duration 20 \
+    --max_grad_norm 10 \
     --no_save_model --no_save_results
