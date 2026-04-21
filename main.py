@@ -121,6 +121,7 @@ if __name__ == "__main__":
     parser.add_argument('--randvf', help='randomly flip input vertically (using `torchvision.transforms.RandomVerticalFlip`)', type=float, choices=[Range(0., 1.)], default=None)
     parser.add_argument('--randjit', help='randomly change the brightness and contrast (using `torchvision.transforms.ColorJitter`)', type=float, choices=[Range(0., 1.)], default=None)
     parser.add_argument('--precomputed', help='use precomputed resized PNGs from CheXpert/png_<size>/. Implies --resize <size> and --imnorm; skips the runtime Resize transform. Only valid for CheXpert.', type=int, nargs='?', const=224, default=None)
+    parser.add_argument('--num_workers', help='DataLoader worker processes per client loader. 0 keeps loading in the main process (safe at large K). Raise only when K is small enough that K*num_workers stays well under OS fd/process limits.', type=int, default=0)
 
     ## statistical heterogeneity simulation arguments
     parser.add_argument('--split_type', help='''type of data split scenario
