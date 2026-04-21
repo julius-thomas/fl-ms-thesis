@@ -1,4 +1,5 @@
 import torch
+import torchvision
 
 from src.models.model_utils import ResidualBlock
 
@@ -52,9 +53,32 @@ class ResNet10(ResNet):
     def __init__(self, in_channels, hidden_size, num_classes):
         super(ResNet10, self).__init__(CONFIGS['ResNet10'], ResidualBlock, in_channels, hidden_size, num_classes)
 
-class ResNet18(ResNet):
+class ResNet18(torch.nn.Module):
+    """Standard torchvision ResNet18 (7x7 stride-2 stem + maxpool).
+
+    Signature matches the custom ResNet family so `load_model` introspection
+    keeps working. `hidden_size` must be 64 — torchvision's stem is fixed to
+    64 channels. `in_channels != 3` swaps conv1 to accept grayscale etc.
+    """
     def __init__(self, in_channels, hidden_size, num_classes):
-        super(ResNet18, self).__init__(CONFIGS['ResNet18'], ResidualBlock, in_channels, hidden_size, num_classes)
+        super().__init__()
+        if hidden_size != 64:
+            raise ValueError(
+                f'ResNet18 (torchvision) requires hidden_size=64, got {hidden_size}. '
+                f'Use the VGG/SimpleCNN families if you need a different width.'
+            )
+        self.in_channels = in_channels
+        self.hidden_size = hidden_size
+        self.num_classes = num_classes
+
+        self.model = torchvision.models.resnet18(weights=None, num_classes=num_classes)
+        if in_channels != 3:
+            self.model.conv1 = torch.nn.Conv2d(
+                in_channels, 64, kernel_size=7, stride=2, padding=3, bias=False
+            )
+
+    def forward(self, x):
+        return self.model(x)
 
 class ResNet34(ResNet):
     def __init__(self, in_channels, hidden_size, num_classes):
