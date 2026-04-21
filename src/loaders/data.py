@@ -68,7 +68,7 @@ def load_dataset(args):
     def _get_transform(args, train=False):
         transform = torchvision.transforms.Compose(
             [
-                torchvision.transforms.Resize((args.resize, args.resize)) if args.resize is not None\
+                torchvision.transforms.Resize((args.resize, args.resize)) if args.resize is not None and getattr(args, 'precomputed', None) is None\
                     else torchvision.transforms.Lambda(lambda x: x),
                 torchvision.transforms.RandomCrop(args.crop, pad_if_needed=True) if (args.crop is not None and train)\
                     else torchvision.transforms.CenterCrop(args.crop) if (args.crop is not None and not train)\
@@ -215,6 +215,14 @@ def load_dataset(args):
         _check_and_raise_error(args.split_type, 'pre', 'split scenario')
         transforms = [_get_transform(args, train=True), _get_transform(args, train=False)]
         chexpert_root = os.path.join(args.data_path, 'CheXpert')
+        if args.precomputed is not None:
+            png_root = os.path.join(chexpert_root, f'png_{args.precomputed}')
+            if not os.path.isdir(png_root):
+                raise FileNotFoundError(
+                    f'--precomputed={args.precomputed} but {png_root} does not exist. '
+                    f'Run external-data/CheXpert/precompute_resized.py --size {args.precomputed} first.'
+                )
+            chexpert_root = png_root
         raw_train, raw_test, args = fetch_chexpert(args=args, root=chexpert_root, transforms=transforms)
 
     elif args.dataset == 'MIMIC4':

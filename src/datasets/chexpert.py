@@ -25,9 +25,10 @@ class CheXpertDataset(torch.utils.data.Dataset):
     samples whose study also has a lateral view serve the lateral image
     instead (labels unchanged). Samples without a lateral twin are unaffected.
     """
-    def __init__(self, root, csv_file, transform=None, raw_fraction=1.0):
+    def __init__(self, root, csv_file, transform=None, raw_fraction=1.0, precomputed=False):
         self.root = root
         self.transform = transform
+        self.precomputed = precomputed
         self.drift_active = False
 
         df = pd.read_csv(csv_file)
@@ -77,7 +78,10 @@ class CheXpertDataset(torch.utils.data.Dataset):
         # find 'train' or 'valid' in the path and take from there
         for i, part in enumerate(parts):
             if part in ('train', 'valid'):
-                return os.path.join(self.root, *parts[i:])
+                local = os.path.join(self.root, *parts[i:])
+                if self.precomputed:
+                    local = os.path.splitext(local)[0] + '.png'
+                return local
         return os.path.join(self.root, csv_path)
 
     def __getitem__(self, index):
@@ -129,18 +133,24 @@ def fetch_chexpert(args, root, transforms):
     logger.info('[LOAD] [CHEXPERT] Fetching dataset!')
 
     raw_fraction = getattr(args, 'rawsmpl', 1.0)
+    precomputed = getattr(args, 'precomputed', None) is not None
+
+    # CSV files live at the original CheXpert root, not inside png_<size>/.
+    csv_root = os.path.dirname(root) if precomputed else root
 
     raw_train = CheXpertDataset(
         root=root,
-        csv_file=os.path.join(root, 'train.csv'),
+        csv_file=os.path.join(csv_root, 'train.csv'),
         transform=transforms[0],
-        raw_fraction=raw_fraction
+        raw_fraction=raw_fraction,
+        precomputed=precomputed,
     )
     raw_test = CheXpertDataset(
         root=root,
-        csv_file=os.path.join(root, 'valid.csv'),
+        csv_file=os.path.join(csv_root, 'valid.csv'),
         transform=transforms[1],
-        raw_fraction=1.0  # always use full validation set
+        raw_fraction=1.0,  # always use full validation set
+        precomputed=precomputed,
     )
 
     train_paired = sum(p is not None for p in raw_train.lateral_paths)

@@ -56,6 +56,62 @@
         "ylim": [0, 1],
         "scale": "exp"
       }
+    },
+    "chexpert_non_iid_auroc": {
+      "df_name": "chexpert_non_iid_auroc",
+      "source": {
+        "tag": "Server Mlauroc",
+        "lines": [
+          {
+            "name": "FedAvg",
+            "path": "~/ma-logs/CheXpert",
+            "match": "FedAvg_CheXpert_ResNet18_Vanilla_seed"
+          },
+          {
+            "name": "MAX-CS",
+            "path": "~/ma-logs/CheXpert",
+            "match": "FedAvg_CheXpert_ResNet18_MaxCS_seed"
+          },
+          {
+            "name": "UCB-CS",
+            "path": "~/ma-logs/CheXpert",
+            "match": "FedAvg_CheXpert_ResNet18_UCBStoch_seed"
+          }
+        ]
+      },
+      "plot": {
+        "legend": ["FedAvg", "MAX-CS", "UCB-CS"],
+        "labels": {"x": "Round", "y": "AUROC"},
+        "ylim": [0.5, 1]
+      }
+    },
+    "chexpert_non_iid_acc": {
+      "df_name": "chexpert_non_iid_acc",
+      "source": {
+        "tag": "Server Mlacc",
+        "lines": [
+          {
+            "name": "FedAvg",
+            "path": "~/ma-logs/CheXpert",
+            "match": "FedAvg_CheXpert_ResNet18_Vanilla_seed"
+          },
+          {
+            "name": "MAX-CS",
+            "path": "~/ma-logs/CheXpert",
+            "match": "FedAvg_CheXpert_ResNet18_MaxCS_seed"
+          },
+          {
+            "name": "UCB-CS",
+            "path": "~/ma-logs/CheXpert",
+            "match": "FedAvg_CheXpert_ResNet18_UCBStoch_seed"
+          }
+        ]
+      },
+      "plot": {
+        "legend": ["FedAvg", "MAX-CS", "UCB-CS"],
+        "labels": {"x": "Round", "y": "Accuracy"},
+        "ylim": [0, 1]
+      }
     }
   }
 }

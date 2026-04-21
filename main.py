@@ -120,6 +120,7 @@ if __name__ == "__main__":
     parser.add_argument('--randhf', help='randomly flip input horizontaly (using `torchvision.transforms.RandomHorizontalFlip`)', type=float, choices=[Range(0., 1.)], default=None)
     parser.add_argument('--randvf', help='randomly flip input vertically (using `torchvision.transforms.RandomVerticalFlip`)', type=float, choices=[Range(0., 1.)], default=None)
     parser.add_argument('--randjit', help='randomly change the brightness and contrast (using `torchvision.transforms.ColorJitter`)', type=float, choices=[Range(0., 1.)], default=None)
+    parser.add_argument('--precomputed', help='use precomputed resized PNGs from CheXpert/png_<size>/. Implies --resize <size> and --imnorm; skips the runtime Resize transform. Only valid for CheXpert.', type=int, nargs='?', const=224, default=None)
 
     ## statistical heterogeneity simulation arguments
     parser.add_argument('--split_type', help='''type of data split scenario
@@ -207,7 +208,13 @@ if __name__ == "__main__":
 
     # parse arguments
     args = parser.parse_args()
-    
+
+    # --precomputed implies --resize <size> --imnorm (those preproc steps are baked
+    # into the cached PNGs, so re-applying Resize at runtime would be wasted work).
+    if args.precomputed is not None:
+        args.resize = args.precomputed
+        args.imnorm = True
+
     # make path for saving losses & metrics & models (skip entirely if nothing will be written)
     curr_time = time.strftime("%y%m%d_%H%M%S", time.localtime())
     args.result_path = os.path.join(args.result_path, f'{args.exp_name}_{curr_time}')

@@ -24,24 +24,40 @@ parser.add_argument('--rawsmpl', type=float, default=1.0)
 parser.add_argument('--batch_size', type=int, default=16)
 parser.add_argument('--bf16', action='store_true')
 parser.add_argument('--data_path', type=str, default='./external-data')
+parser.add_argument('--precomputed', type=int, nargs='?', const=224, default=None,
+                    help='use CheXpert/png_<size>/ cache; skips runtime Resize')
 args = parser.parse_args()
 
 DEVICE = args.device
 NUM_CLASSES = 14
-root = os.path.join(args.data_path, 'CheXpert')
+chexpert_root = os.path.join(args.data_path, 'CheXpert')
+if args.precomputed is not None:
+    args.resize = args.precomputed
+    image_root = os.path.join(chexpert_root, f'png_{args.precomputed}')
+    if not os.path.isdir(image_root):
+        raise FileNotFoundError(
+            f'--precomputed={args.precomputed} but {image_root} does not exist. '
+            f'Run external-data/CheXpert/precompute_resized.py --size {args.precomputed} first.'
+        )
+else:
+    image_root = chexpert_root
 
-transform = torchvision.transforms.Compose([
-    torchvision.transforms.Resize((args.resize, args.resize)),
+transform_stages = []
+if args.precomputed is None:
+    transform_stages.append(torchvision.transforms.Resize((args.resize, args.resize)))
+transform_stages.extend([
     torchvision.transforms.ToTensor(),
     torchvision.transforms.Normalize([0.5]*3, [0.5]*3),
 ])
+transform = torchvision.transforms.Compose(transform_stages)
 
-print(f'Loading dataset (rawsmpl={args.rawsmpl})...')
+print(f'Loading dataset (rawsmpl={args.rawsmpl}, precomputed={args.precomputed})...')
 ds = CheXpertDataset(
-    root=root,
-    csv_file=os.path.join(root, 'train.csv'),
+    root=image_root,
+    csv_file=os.path.join(chexpert_root, 'train.csv'),
     transform=transform,
     raw_fraction=args.rawsmpl,
+    precomputed=args.precomputed is not None,
 )
 ds = CheXpertWrapper(ds, 'CHEXPERT', 'CLIENT')
 loader = torch.utils.data.DataLoader(ds, batch_size=args.batch_size, shuffle=True,
