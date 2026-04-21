@@ -2,9 +2,9 @@
 #SBATCH --job-name=fl
 #SBATCH -p gpu
 #SBATCH --gres=gpu:a100:1
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
-#SBATCH --time=18:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=slurm/out/slurm-%x-%A_%a.out
 #SBATCH --error=slurm/err/slurm-%x-%A_%a.err
 #SBATCH --mail-user=nsw510@alumni.ku.dk
