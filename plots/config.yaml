@@ -32,8 +32,11 @@ plots:
         - name: UCB-CS
           path: "~/ma-logs/MNIST/UCBCS"
           match: MNIST_NON_IID_SUD_UCBCS_seed
+        - name: UCB-CS (W=5)
+          path: "~/ma-logs/MNIST/UCBCS_W5"
+          match: MNIST_NON_IID_SUD_UCBCS_W5_seed
     plot:
-      legend: [FedAvg, MAX-CS, UCB-CS]
+      legend: [FedAvg, MAX-CS, UCB-CS, UCB-CS (W=5)]
       labels: {x: Round, y: Accuracy}
       ylim: [0, 1]
       scale: exp
