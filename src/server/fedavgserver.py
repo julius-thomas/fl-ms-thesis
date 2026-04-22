@@ -72,8 +72,10 @@ class FedavgServer(BaseServer):
                 self.args.candidate_sampling = 'uniform'
             else:
                 K = int(self.args.K)
-                self.ucb_n = np.zeros(K, dtype=np.int64)     # pull counts (candidate-set inclusions)
-                self.ucb_mu = np.zeros(K, dtype=np.float64)  # running mean loss per client
+                # Per-client reward history: list of (round, reward) tuples.
+                # Windowed UCB computes mu_hat_i and n_i on-the-fly from entries
+                # within the last --ucb_window rounds (0 => infinite / full history).
+                self.ucb_history = [[] for _ in range(K)]
 
     def _init_model(self, model):
         logger.info(f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] [Round: {str(self.round).zfill(4)}] Initialize a model!')
@@ -425,50 +427,98 @@ class FedavgServer(BaseServer):
         if start <= self.round <= (start + dur):
             self.drift_std = max(0.0, min(1.0, (self.round - start) / dur))
 
+    def _ucb_windowed_stats(self):
+        """Per-client (mu_hat, n) over the last --ucb_window rounds (0 => all history)."""
+        K = int(self.args.K)
+        W = int(getattr(self.args, 'ucb_window', 0))
+        mu = np.zeros(K, dtype=np.float64)
+        n = np.zeros(K, dtype=np.int64)
+        for i in range(K):
+            hist = self.ucb_history[i]
+            if W <= 0:
+                vals = [r for (_, r) in hist]
+            else:
+                cutoff = self.round - W
+                vals = [r for (rd, r) in hist if rd > cutoff]
+            if vals:
+                n[i] = len(vals)
+                mu[i] = float(np.mean(vals))
+        return mu, n
+
     def _ucb_sample_candidates(self):
         """Pick the candidate set via UCB1 over all K clients.
 
-        Score: mu_hat_i + c * sqrt(ln t / n_i), where t = sum(n_i).
-        Unvisited clients (n_i = 0) are drafted first (optimistic init), with random
-        tie-breaking. Returns a sorted list of client ids of size max(int(C*K), 1).
+        Score: mu_hat_i + c * sqrt(ln t / n_i), where t = sum(n_i). When
+        --ucb_window > 0, mu_hat_i and n_i are computed over only the last W
+        rounds; arms that fall out of the window are treated as unvisited and
+        drafted first (the sliding-window UCB staleness guarantee).
         """
         K = int(self.args.K)
         m = max(int(self.args.C * K), 1)
+        mu_w, n_w = self._ucb_windowed_stats()
 
-        unvisited = np.where(self.ucb_n == 0)[0]
+        unvisited = np.where(n_w == 0)[0]
         if len(unvisited) >= m:
-            # cold-start rotation: pick m unvisited at random
+            # cold-start / window-expired rotation: pick m unvisited at random
             chosen = np.random.choice(unvisited, size=m, replace=False)
             logger.info(
                 f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] '
                 f'[Round: {str(self.round).zfill(4)}] UCB cold-start: '
-                f'picked {m} unvisited of {len(unvisited)} remaining.'
+                f'picked {m} unvisited (windowed) of {len(unvisited)} remaining.'
             )
             return sorted(chosen.tolist())
 
-        # steady state: all unvisited (if any) + top-(m - |unvisited|) visited by UCB score
-        visited = np.where(self.ucb_n > 0)[0]
-        t = float(self.ucb_n.sum())
+        # steady state: all unvisited (if any) + top-(m - |unvisited|) by UCB score
+        visited = np.where(n_w > 0)[0]
+        t = float(n_w.sum())
         log_t = math.log(max(t, 1.0))
-        bonus = self.args.ucb_c * np.sqrt(log_t / self.ucb_n[visited])
-        scores = self.ucb_mu[visited] + bonus
+        bonus = self.args.ucb_c * np.sqrt(log_t / n_w[visited])
+        scores = mu_w[visited] + bonus
 
         need = m - len(unvisited)
         top_local = np.argsort(-scores)[:need]
         chosen = np.concatenate([unvisited, visited[top_local]])
+        W = int(getattr(self.args, 'ucb_window', 0))
         logger.info(
             f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] '
             f'[Round: {str(self.round).zfill(4)}] UCB candidate: '
-            f'{len(unvisited)} unvisited + {need} by UCB score (t={int(t)}, c={self.args.ucb_c}).'
+            f'{len(unvisited)} unvisited + {need} by UCB score '
+            f'(t={int(t)}, c={self.args.ucb_c}, W={W if W > 0 else "inf"}).'
         )
         return sorted(chosen.tolist())
 
-    def _update_ucb_state(self, client_losses):
-        """Update running mean mu_hat_i and pull count n_i from fresh loss queries."""
-        for cid, loss in client_losses.items():
-            n = int(self.ucb_n[cid])
-            self.ucb_mu[cid] = (self.ucb_mu[cid] * n + float(loss)) / (n + 1)
-            self.ucb_n[cid] = n + 1
+    def _update_ucb_state(self, client_rewards):
+        """Append fresh reward observations to per-client history.
+
+        `client_rewards` is {cid: reward}. Higher reward -> more interesting arm.
+        The reward is whichever signal --ucb_signal selects: pre-training loss,
+        delta_loss (L_before - L_after), or param_drift (||w_local - w_global||).
+        Windowing (if enabled) is applied at read time in `_ucb_windowed_stats`.
+        """
+        for cid, reward in client_rewards.items():
+            self.ucb_history[cid].append((int(self.round), float(reward)))
+
+    def _compute_param_drift(self, ids):
+        """L2 norm ||w_client - w_global|| per client, summed over named_parameters.
+
+        Called after local training, before aggregation (while client.model still holds
+        the trained weights). Used as the UCB reward when --ucb_signal param_drift.
+        """
+        global_params = {name: p.detach() for name, p in self.global_model.named_parameters()}
+        drifts = {}
+        for cid in ids:
+            client = self.clients[cid]
+            if client.model is None:
+                drifts[cid] = 0.0
+                continue
+            sq_sum = 0.0
+            for name, p in client.model.named_parameters():
+                g = global_params.get(name)
+                if g is None:
+                    continue
+                sq_sum += float(((p.detach() - g) ** 2).sum().item())
+            drifts[cid] = math.sqrt(sq_sum)
+        return drifts
 
     def _get_highest_loss(self, client_losses):
         """Select clients by loss: 'max' picks top-K, 'stoch' uses Boltzmann softmax sampling."""
@@ -564,15 +614,21 @@ class FedavgServer(BaseServer):
         ######################
         # Active Sampling    #
         ######################
+        loss_before = None
         if getattr(self.args, 'active_sampling', False):
             # get losses from sampled clients to re-select by loss
             client_losses = self._request(selected_ids, eval=False, participated=True, retain_model=True, save_raw=False, get_loss=True)
             for cid in selected_ids:
                 if self.clients[cid].model is not None:
                     self.clients[cid].model = None
-            # update UCB state from fresh loss queries (before final selection)
-            if getattr(self.args, 'candidate_sampling', 'uniform') == 'ucb':
+            # update UCB state (pre-training loss signal) from candidate pool
+            if (getattr(self.args, 'candidate_sampling', 'uniform') == 'ucb'
+                and getattr(self.args, 'ucb_signal', 'loss') == 'loss'):
                 self._update_ucb_state(client_losses)
+            # cache pre-training losses for the delta_loss signal (computed post-training below)
+            if (getattr(self.args, 'candidate_sampling', 'uniform') == 'ucb'
+                and getattr(self.args, 'ucb_signal', 'loss') == 'delta_loss'):
+                loss_before = dict(client_losses)
             selected_ids = self._get_highest_loss(client_losses)
 
         ########################
@@ -584,6 +640,18 @@ class FedavgServer(BaseServer):
         # request update & evaluation to selected clients
         updated_sizes = self._request(selected_ids, eval=False, participated=True, retain_model=True, save_raw=False)
         _ = self._request(selected_ids, eval=True, participated=True, retain_model=True, save_raw=False)
+
+        # post-training UCB updates (only reach here when candidate_sampling==ucb)
+        if (getattr(self.args, 'candidate_sampling', 'uniform') == 'ucb'
+            and getattr(self.args, 'active_sampling', False)):
+            signal = getattr(self.args, 'ucb_signal', 'loss')
+            if signal == 'delta_loss' and loss_before is not None:
+                loss_after = self._request(selected_ids, eval=False, participated=True, retain_model=True, save_raw=False, get_loss=True)
+                deltas = {cid: float(loss_before.get(cid, 0.0)) - float(loss_after[cid]) for cid in selected_ids if cid in loss_after}
+                self._update_ucb_state(deltas)
+            elif signal == 'param_drift':
+                drifts = self._compute_param_drift(selected_ids)
+                self._update_ucb_state(drifts)
 
         #################
         # Server Update #

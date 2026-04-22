@@ -77,6 +77,7 @@ class FedavgClient(BaseClient):
         with torch.autocast(device_type='cuda', dtype=torch.bfloat16, enabled=self.args.bf16):
             outputs = self.model(inputs)
             loss = self.criterion(outputs, targets)
+        self.model.to('cpu')
         return loss.item()
 
     @torch.inference_mode()

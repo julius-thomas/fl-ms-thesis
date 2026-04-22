@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-import json
+import yaml
 import math
 import os
 from functools import partial
@@ -32,7 +32,7 @@ except Exception as e:
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 TB_DIR = os.path.join(THIS_DIR, "tb_objects")
 PDF_DIR = os.path.join(THIS_DIR, "pdf")
-CONFIG_PATH = os.path.join(THIS_DIR, "config.json")
+CONFIG_PATH = os.path.join(THIS_DIR, "config.yaml")
 
 
 # ---------------- Helpers ----------------
@@ -523,7 +523,7 @@ def main():
     args = ap.parse_args()
 
     with open(args.config) as f:
-        config = json.load(f)
+        config = yaml.safe_load(f)
 
     if not args.skip_objects:
         generate_objects(config, args.tb_dir)

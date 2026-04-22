@@ -2,9 +2,9 @@
 : "${EXP_SUFFIX:=}"
 
 python3 main.py \
-    --exp_name "FedAvg_MIMIC4_LogReg_UCBStoch${EXP_SUFFIX}" --seed ${SEED} --device mps \
-    --dataset MIMIC4 --data_path ./external-data --rawsmpl 0.25 \
-    --split_type custom --cncntrtn 0.3 --test_size 0.2 \
+    --exp_name "MIMIC_NON_IID_SUD_UCBCS${EXP_SUFFIX}" --seed ${SEED} --device mps \
+    --dataset MIMIC4 --data_path ./external-data --rawsmpl 0.2 \
+    --split_type custom --cncntrtn 0.3 --test_size 0.0 \
     --model_name LogReg --num_layers 1 --hidden_size 64 \
     --algorithm fedavg --eval_fraction 1 --eval_type both --eval_every 1 --eval_metrics acc1 auroc auprc \
     --K 20 --R 150 --E 1 --C 0.5 --B 64 --beta1 0 \
