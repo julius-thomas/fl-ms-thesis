@@ -2,7 +2,7 @@
 : "${EXP_SUFFIX:=}"
 
 python3 main.py \
-    --exp_name "FedAvg_CheXpert_ResNet18_UCBStoch_W8${EXP_SUFFIX}" --seed ${SEED} --device cuda --bf16 \
+    --exp_name "CHEXPERT_NON_IID_SUD_UCBCS_W8${EXP_SUFFIX}" --seed ${SEED} --device cuda --bf16 \
     --dataset CheXpert --data_path ./external-data --rawsmpl 1.0 \
     --split_type custom --cncntrtn 0.3 --test_size 0.0 \
     --randhf 0.5 --randrot 10 \
