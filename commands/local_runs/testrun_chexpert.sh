@@ -1,10 +1,12 @@
 python3 main.py \
-    --exp_name "FedAvg_CheXpert_ResNet10_CustomDrift_tiny" --seed 42 --device mps \
-    --dataset CheXpert --data_path ./external-data \
-    --split_type custom --cncntrtn 0.5 --test_size 0.2 --rawsmpl 0.1 \
-    --model_name ResNet18 --resize 112 --hidden_size 12 --imnorm --init_type kaiming \
-    --algorithm fedavg --eval_fraction 1 --eval_type both --eval_every 1 --eval_metrics mlacc \
-    --K 20 --R 50 --E 1 --C 0.25 --B 16 --beta1 0 \
-    --concept_drift --drift_mode custom --drift_start 10 --drift_duration 0 \
-    --optimizer Adam --lr 0.001 --lr_decay 1.0 --lr_decay_step 5 --criterion BCEWithLogitsLoss \
-    --use_tb
+    --exp_name "FedAvg_CheXpert_ResNet18_Vanilla${EXP_SUFFIX}" --seed 43 --device mps \
+    --dataset CheXpert --data_path ./external-data --rawsmpl 0.25 \
+    --split_type custom --cncntrtn 0.3 --test_size 0.0 \
+    --randhf 0.5 --randrot 15 --randjit 0.15 \
+    --model_name ResNet18 --resize 224 --hidden_size 64 --imnorm --init_type kaiming \
+    --algorithm fedavg --eval_fraction 1 --eval_type both --eval_every 1 --eval_metrics mlacc mlauroc \
+    --K 100 --R 150 --E 1 --C 0.05 --B 16 --beta1 0 \
+    --concept_drift --drift_mode custom --drift_start 100 --drift_duration 1 \
+    --optimizer Adam --lr 0.0001 --lr_decay 1.0 --lr_decay_step 10 --criterion BCEWithLogitsLoss \
+    --weight_decay 1e-5 --max_grad_norm 1.0 \
+    --no_save_model --no_save_results \

@@ -66,27 +66,27 @@ def load_dataset(args):
 
     # method to get transformation chain
     def _get_transform(args, train=False):
-        transform = torchvision.transforms.Compose(
-            [
-                torchvision.transforms.Resize((args.resize, args.resize)) if args.resize is not None and getattr(args, 'precomputed', None) is None\
-                    else torchvision.transforms.Lambda(lambda x: x),
-                torchvision.transforms.RandomCrop(args.crop, pad_if_needed=True) if (args.crop is not None and train)\
-                    else torchvision.transforms.CenterCrop(args.crop) if (args.crop is not None and not train)\
-                        else torchvision.transforms.Lambda(lambda x: x),
-                torchvision.transforms.RandomRotation(args.randrot) if (args.randrot is not None and train)\
-                    else torchvision.transforms.Lambda(lambda x: x),
-                torchvision.transforms.RandomHorizontalFlip(args.randhf) if (args.randhf is not None and train)\
-                    else torchvision.transforms.Lambda(lambda x: x),
-                torchvision.transforms.RandomVerticalFlip(args.randvf) if (args.randvf is not None and train)\
-                    else torchvision.transforms.Lambda(lambda x: x),
-                torchvision.transforms.ColorJitter(brightness=args.randjit, contrast=args.randjit) if (args.randjit is not None and train)\
-                    else torchvision.transforms.Lambda(lambda x: x),
-                torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]) if args.imnorm\
-                    else torchvision.transforms.Lambda(lambda x: x)
-            ]
-        )
-        return transform
+        ops = []
+        if args.resize is not None and getattr(args, 'precomputed', None) is None:
+            ops.append(torchvision.transforms.Resize((args.resize, args.resize)))
+        if args.crop is not None:
+            ops.append(
+                torchvision.transforms.RandomCrop(args.crop, pad_if_needed=True) if train
+                else torchvision.transforms.CenterCrop(args.crop)
+            )
+        if train:
+            if args.randrot is not None:
+                ops.append(torchvision.transforms.RandomRotation(args.randrot))
+            if args.randhf is not None:
+                ops.append(torchvision.transforms.RandomHorizontalFlip(args.randhf))
+            if args.randvf is not None:
+                ops.append(torchvision.transforms.RandomVerticalFlip(args.randvf))
+            if args.randjit is not None:
+                ops.append(torchvision.transforms.ColorJitter(brightness=args.randjit, contrast=args.randjit))
+        ops.append(torchvision.transforms.ToTensor())
+        if args.imnorm:
+            ops.append(torchvision.transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]))
+        return torchvision.transforms.Compose(ops)
 
     # method to construct per-client dataset
     def _construct_dataset(raw_train, idx, sample_indices):
