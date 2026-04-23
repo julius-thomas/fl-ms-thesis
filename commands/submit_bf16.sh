@@ -2,7 +2,7 @@
 #SBATCH --job-name=fl
 #SBATCH -p gpu
 #SBATCH --gres=gpu:1
-#SBATCH --exclude=hendrixgpu05fl,hendrixgpu06fl,hendrixgpu09fl,hendrixgpu10fl,hendrixgpu11fl,hendrixgpu12fl,hendrixgpu13fl,hendrixgpu17fl,hendrixgpu18fl,hendrixgpu19fl,hendrixgpu20fl
+#SBATCH --exclude=hendrixgpu03fl,hendrixgpu05fl,hendrixgpu06fl,hendrixgpu09fl,hendrixgpu10fl,hendrixgpu11fl,hendrixgpu12fl,hendrixgpu13fl,hendrixgpu17fl,hendrixgpu18fl,hendrixgpu19fl,hendrixgpu20fl
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
 #SBATCH --time=18:00:00
