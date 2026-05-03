@@ -396,7 +396,7 @@ class FedavgServer(BaseServer):
             logger.info(
                 f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] '
                 f'[Round: {str(self.round).zfill(4)}] Custom drift activated '
-                f'(ICD-9 -> ICD-10 feature view switch).'
+                f'(lab itemid rename — pre-drift vs post-drift column mapping).'
             )
             return
         if self.args.dataset == 'CheXpert':

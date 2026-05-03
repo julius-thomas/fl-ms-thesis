@@ -2,132 +2,231 @@
 
 ## Cohort
 
-- **ICU only** — first ICU stay per hospital admission, joined via `hadm_id` inner-merge with `icustays` (≈65k admissions at full sample, ≈21k at `rawsmpl=0.25`).
+- **ICU only** — first ICU stay per hospital admission, joined via `hadm_id`
+  inner-merge with `icustays`.
 - **Target:** `hospital_expire_flag` (in-hospital mortality), ~11% positive rate.
-- **Features:** 126-dim mixed vector — demographics, admission info, grouped care unit one-hots, 15 key labs (mean/min/max), ICD-chapter counts (`dx_*`), procedure-group counts (`px_*`), medication counts, ICU LOS. Both ICD-9 and ICD-10 codes are harmonized into the same fixed chapter taxonomy so the model input dimensionality is invariant to the coding-system switch.
+- **Features:** ~125-dim mixed vector — demographics, admission info, grouped
+  care unit one-hots, 15 key labs (mean/min/max), ICD-chapter counts (`dx_*`),
+  procedure-group counts (`px_*`), medication counts, ICU LOS. Both ICD-9 and
+  ICD-10 codes are harmonised into the same fixed chapter taxonomy so the model
+  input dimensionality is invariant to the coding-system switch.
+- Admissions whose `first_careunit` does not map to one of the seven grouped
+  units below are dropped before splitting (too few to form a useful client and
+  loss-based selectors waste slots on the resulting tiny client).
 
-## Heterogeneity — Dirichlet over care units
+## Heterogeneity — strict care-unit partition
 
-Each client's data is a non-IID mixture over the grouped ICU unit `Z ∈ {MICU, MICU_SICU, CVICU, SICU, CCU, TSICU, Neuro, Other}`.
+Each client is assigned the records of **exactly one** grouped ICU unit
+`Z ∈ {MICU, MICU_SICU, CVICU, SICU, CCU, TSICU, Neuro}`. There is no
+mixing — a client whose unit is, say, `CVICU` sees only CVICU patients.
 
-For each care unit `c`, draw `q_c ~ Dir(α · 1_K)` and distribute that unit's records across `K` clients proportional to `q_c`. Small `α` (`--cncntrtn 0.3`) yields strongly skewed mixes: each client is dominated by 1–2 care units while still seeing some minority cases. `α` is the single knob controlling how lopsided the partition is.
+Multiple clients are allocated to each care unit by the largest-remainder
+method: every unit gets a floor of one client, and the remaining `K - 7`
+clients are distributed proportional to the unit's sample count. Within a
+unit the records are shuffled and split evenly across the clients allocated
+to it. The split requires `K ≥ 7`.
 
-**Rationale.** Care unit is a real, clinically meaningful hospital subdivision — it mirrors how a federation of hospitals would differ in patient mix. It is also the axis the drift mechanism keys off (below), so the data-distribution gradient and the drift-severity gradient align on the same variable, giving the selection algorithm a single axis to exploit.
+`--cncntrtn` (Dirichlet `α`) is **unused** for MIMIC under `--split_type
+custom`; it is preserved on the CLI only because the CheXpert custom split
+still consumes it.
 
-## Concept drift — ICD-9 → ICD-10 crosswalk corruption
+**Rationale.** Care unit is a real, clinically meaningful hospital
+subdivision — it mirrors how a federation of hospitals (or services within
+one hospital) would differ in patient mix. Strict partitioning maximises
+the per-client drift-severity gradient: the lab columns the drift mechanism
+permutes (`troponin`, `lactate`, `bun`, `creatinine`) have characteristically
+unit-specific distributions, so a client whose only patients are CCU sees
+the troponin permutation as a large logit shift, while a client whose
+patients are e.g. Neuro is barely perturbed by the same permutation. A
+Dirichlet mixture would dilute that gradient by averaging exposures across
+units inside each client; strict partitioning preserves it.
 
-**Real-world event.** On 2015-10-01 US hospitals switched from ICD-9 (~14k codes) to ICD-10 (~70k codes) with finer granularity (laterality, episode of care, D-code split, F-code expansion). Different IT vendors shipped different crosswalk implementations; some hospitals applied the CMS GEMs correctly, others produced scrambled chapter assignments — particularly for the chapters whose ICD-9→ICD-10 remaps were the messiest.
+## Concept drift — LOINC lab itemid migration
 
-**Deterministic corrupt-group predicate** (computed from features, not randomly assigned):
+**Real-world event.** Around the same window as the ICD-10 transition,
+many US hospitals migrated their laboratory information systems from local
+itemid taxonomies to the LOINC standard (driven by HITECH / Meaningful Use
+Stage 2 & 3 incentives). Because LOINC organises tests by analyte +
+specimen + method, records that were aggregated under one local itemid
+column often end up split across, or merged into, different LOINC columns
+after migration. The **chemical content** of the measurement is unchanged
+— a sodium value is still a sodium value — but the **column** the value
+lives in (and which the model's learned weights multiply) changes.
 
-```
-is_corrupt(patient) = (dx_mental > 0) OR (dx_external > 0) OR (dx_injury > 0)
-```
+**Corruption mechanism.** The dataset holds two pre-built feature matrices
+of identical shape: `inputs_normal` (pre-migration) and `inputs_corrupt`
+(post-migration). Before `drift_start`, every admission is served from
+`inputs_normal`. At round `== drift_start` the server flips a single
+`drift_active` flag on the shared `MIMIC4` instance. From that round
+onward every admission is served from `inputs_corrupt`.
 
-A patient falls in the corrupt group iff they had ≥1 diagnosis in the chapters with the worst crosswalks (F-codes expanded ~3×, E/V → V/W/X/Y with laterality, S/T with episode-of-care). On the sampled cohort this is 73% of admissions; per care unit it ranges from 62% (CVICU) to 85% (TSICU).
+`inputs_corrupt` is built by:
 
-**Corruption mechanism.** Before `drift_start`, every admission sees the canonical feature vector. At round == `drift_start`, the server flips a single `drift_active` flag on the shared `MIMIC4` instance. From that round onward:
+1. Selecting every feature column whose name contains one of the substrings
+   `troponin`, `lactate`, `bun`, `creatinine`. Under the current feature
+   builder this matches `lab_{mean,min,max}_<name>` for each — 12 columns
+   in total.
+2. Drawing a derangement-ish permutation over those 12 indices (seeded on
+   `--seed`; up to 32 reshuffles to keep self-maps below 10%) and writing
+   the permuted source columns into the same 12 destination indices. All
+   other columns are left untouched.
+3. Multiplying the 12 permuted columns by `4×` (`_CORRUPT_AMP`). A
+   realistic crosswalk wouldn't change magnitudes, but the amplifier
+   forces the model to actually fit the renamed columns rather than
+   silently down-weighting the affected region.
 
-- **Corrupt patients** receive their scaled feature vector with all 29 ICD-derived columns (`dx_*`, `px_*`, `num_diagnoses`, `num_procedures`) **shuffled** via a fixed deterministic random permutation (seeded on `--seed`), then **amplified by 4×**. This simulates a crosswalk that both scrambles chapter assignments and inflates counts through duplicated code mappings.
-- **Non-corrupt patients** remain on the canonical view (their pipeline was patched correctly).
-- All non-ICD features (labs, demographics, insurance, care unit one-hots) are left untouched — the corruption is confined to the ICD coding pipeline.
+**Why the rename is universal across patients (not a "corrupt subgroup").**
+A LOINC migration is hospital-wide: once the LIS cuts over, every new
+admission is coded under the new schema. If only some patients were recoded
+the model would have to serve two contradictory label-to-column mappings
+through shared weights — impossible for a linear model — and the optimiser
+would settle on ignoring the affected columns entirely. Universal rename
+gives the model a single new target mapping to re-learn:
+`w_new = P @ w_old`, where `P` is the permutation over the renamed columns.
+
+**Why labs (not ICD chapters).** An earlier revision of this drift
+permuted only the `dx_*` columns. Weight inspection on a trained LogReg
+showed those columns carry roughly 3.5% of the total weight mass (labs
+carry ~60%) — the model had learned to ignore diagnosis chapter
+distributions almost entirely. Permuting near-dead weights produced a
+weak, homogeneous drift that client-selection policies could not
+meaningfully differentiate on. Labs are the dominant mortality predictors
+in this LogReg, so permuting them is what actually exercises drift
+recovery.
+
+**Why only four labs (not all 45 lab columns).** A full lab permutation
+hits every patient's feature vector with roughly equal magnitude — labs
+are dense — which dampens the per-care-unit severity gradient. Narrowing
+the scope to four analytes whose values are sharply distributed by care
+unit restores the structural per-client gradient: CCU patients have
+characteristically high troponin, TSICU patients have characteristically
+high lactate, MICU patients have characteristically high BUN/creatinine
+(chronic kidney disease comorbidity), etc. Narrative-wise this matches
+a partial migration: "the LIS migration started with chemistry and
+cardiac panels; coags, hematology, and the rest stayed on legacy
+itemids."
 
 ## How heterogeneity and drift compose
 
-Because the corrupt predicate is feature-based and care units differ in their chapter mix, the two mechanisms compose automatically:
-
-| Care unit | Corrupt % | Effective drift severity |
-|-----------|-----------|--------------------------|
-| TSICU | 85% | highest |
-| MICU / MICU_SICU | 79% | high |
-| SICU | 71% | moderate |
-| CCU | 69% | moderate |
-| Neuro | 62% | lower |
-| CVICU | 61% | lowest |
-
-A client whose Dirichlet draw concentrates on TSICU sees ~85% of its data go corrupt at `drift_start`; a client concentrated on CVICU sees only ~61%. The selection algorithm thus has a continuous per-client drift-severity gradient, correlated with but not trivially redundant with the care-unit partition (since `α=0.3` produces mixed distributions rather than pure single-unit clients).
-
-## Empirical footprint
-
-A centralized LogReg trained on the canonical features achieves **AUROC 0.932 / Acc1 0.925** on the holdout. After flipping the corrupt group to the shuffled+amplified view (labels unchanged): **AUROC 0.740 / Acc1 0.872** — a 19-point AUROC drop driven primarily by the corrupt subset (acc 0.925 → 0.849) while the clean subset is stable (acc 0.933). Acc1 is structurally insensitive at the 11% positive base rate, so AUROC is reported as the primary drift metric.
+Strict care-unit partitioning + lab-name-scoped permutation means each
+client experiences a drift magnitude determined by its assigned unit's
+distribution over the four affected analytes. CCU clients absorb most of
+the troponin shift; TSICU clients most of the lactate shift; MICU clients
+most of the BUN / creatinine shift; Neuro clients are comparatively
+insulated because none of the four analytes is a top mortality signal in
+that population. The selection algorithm thus has a continuous,
+clinically interpretable per-client drift-severity gradient that lines up
+exactly with the partition axis.
 
 ## Command-line interface
 
 ```bash
---split_type custom --cncntrtn 0.3      # Dirichlet-over-care-unit
---concept_drift                          # enable drift
---drift_mode custom                      # dispatches to MIMIC crosswalk corruption
---drift_start 50                         # round at which drift_active is flipped
---drift_duration 0                       # one-off event (idempotent after flip)
+--split_type custom                   # strict care-unit partition (--cncntrtn ignored)
+--concept_drift                       # enable drift
+--drift_mode custom                   # dispatches to MIMIC LOINC-style permutation
+--drift_start 400                     # round at which drift_active is flipped
+--drift_duration 0                    # one-off event (idempotent after flip)
+--K 20                                # K >= 7 (one client per care unit minimum)
 ```
 
-## Real-world relation
+## Real-world parallels for the simulated drift
 
-The drift in this experiment is a stylised simulation of a documented, datable
-real-world event in US clinical data.
+The drift in this experiment is a stylised simulation of a class of
+documented, datable events in clinical-data engineering: a hospital
+**re-coding the columns** under which lab measurements arrive, without
+changing the underlying chemistry. Real-world instances:
 
-- **The coding-system switch (2015-10-01).** US hospitals were mandated to
-  switch from ICD-9-CM (~14k diagnosis codes, ~4k procedure codes) to
-  ICD-10-CM / ICD-10-PCS (~70k diagnosis codes, ~72k procedure codes) on
-  October 1, 2015. Structural changes included alphanumeric codes, required
-  laterality (left/right/bilateral), an episode-of-care qualifier for
-  injuries, a three-to-four-fold expansion of the F-code (mental/behavioural)
-  chapter, and a reorganisation of external-cause codes (E/V → V/W/X/Y/Z).
-- **The CMS GEMs crosswalks.** CMS published General Equivalence Mappings
-  (GEMs) as a bidirectional crosswalk between ICD-9 and ICD-10 codes. The
-  GEMs explicitly flag many mappings as "approximate" or "no map", and a
-  substantial fraction of ICD-9 codes expand to multiple ICD-10 codes (or
-  vice versa). This ambiguity is the real-world source of the "messy
-  crosswalk" narrative used here.
-- **Uneven hospital implementation.** Different EHR and billing vendors
-  implemented GEMs application differently; some hospitals applied the
-  forward maps correctly, others produced systematically distorted chapter
-  counts in the period immediately after the cutover (code duplication
-  across chapters, miscategorised remaps, increased coding depth per
-  admission).
-- **Why MIMIC-IV contains both eras.** MIMIC-IV spans 2008–2019, straddling
-  the cutover: pre-2015 admissions are natively coded in ICD-9, post-2015
-  in ICD-10. The feature builder harmonises both into a single chapter
-  taxonomy, so the canonical feature vector already represents the "good
-  crosswalk" outcome. Our corrupted view is what the same feature vector
-  would look like under a *bad* crosswalk — the counterfactual scenario
-  for a hospital whose pipeline was mis-configured during the transition.
-- **Differential exposure by care unit.** Trauma units (S/T codes, external
-  causes) and medical ICUs (F-codes, sepsis, broader diagnostic mix) were
-  structurally more exposed to the messy chapters than cardiac ICUs (whose
-  I-code circulatory diagnoses map relatively cleanly between ICD-9 and
-  ICD-10). This is why the corrupt-group fraction varies from ~61% (CVICU)
-  to ~85% (TSICU) in our implementation — the unevenness is a direct
-  consequence of real chapter-level crosswalk complexity, not an imposed
-  per-client parameter.
+- **LOINC adoption (HITECH / Meaningful Use, ~2011–2018).** Federal
+  incentive programmes (Meaningful Use Stage 2, then 21st Century Cures
+  Act / ONC interoperability rules) progressively required LOINC for
+  laboratory result exchange. Hospitals on local itemid taxonomies cut
+  over to LOINC in batches — usually one analyte panel at a time
+  (chemistry first, then haematology, coags, microbiology). Models
+  trained on pre-cutover features see a column-rename event at the
+  moment of each panel migration.
+- **Hospital-wide LIS / EHR vendor swap.** Replacing the laboratory
+  information system (Cerner Millennium → Epic Beaker, Sunquest → Epic,
+  Meditech → Epic, etc.) re-keys every result under the new vendor's
+  identifier scheme. Multi-hospital systems that consolidate onto a
+  single LIS produce the same effect at acquisition time.
+- **Analyser / reagent vendor change.** When a chemistry analyser
+  (Roche Cobas → Abbott Architect, Beckman → Siemens, etc.) is
+  swapped, the LIS often emits the test under a new instrument-tied
+  itemid even though the analyte is identical. Reference-range tweaks
+  bundled with the swap can also rescale the column.
+- **MIMIC-III → MIMIC-IV itemid renumbering.** The MIMIC project
+  itself re-keyed labs and chartevents between versions: itemids that
+  identified a measurement in MIMIC-III do not necessarily identify
+  the same measurement in MIMIC-IV. A model trained on MIMIC-III
+  features and inferred on MIMIC-IV without a translation table
+  experiences exactly this drift.
+- **COVID-era LOINC additions (2020–2021).** New SARS-CoV-2 PCR /
+  antigen / antibody LOINC codes were added rapidly during the
+  pandemic. Hospitals that had been logging COVID assays under
+  ad-hoc local codes re-mapped them to the new standard codes once
+  released, generating a column-rename for that subset of tests.
+- **Unit / reference-method standardisation.** Vitamin D reporting
+  was reorganised when LOINC distinguished 25-OH-D2 vs D3 vs total;
+  HbA1c reporting moved from %DCCT to mmol/mol IFCC in many systems.
+  These re-keys are narrower than a full LIS migration but the
+  model-side effect is the same: a previously stable column starts
+  receiving the values that used to live in a sibling column.
+- **Pandemic-era ICD-10-CM additions for pulmonary embolism, MIS-C,
+  long-COVID** (2020-04, 2020-10, 2021-10 quarterly updates). The
+  ICD analogue of the lab story — already covered by the previous
+  revision of this document, retained here as a reminder that the
+  rename pattern recurs across coding subsystems whenever standards
+  bodies push out a new edition.
+
+In all of these, the model-side observation is identical: at some
+calendar moment, a subset of feature columns starts receiving the
+numeric content that used to live in (different) sibling columns. The
+labels do not change. The patient population does not change. Only the
+mapping from "thing measured" to "column index" changes.
+
+## Empirical footprint
+
+The drift's quantitative impact (centralised AUROC pre/post, per-care-unit
+breakdown) is measured by the experiment runs themselves rather than
+asserted in this document — the figures shift whenever the corrupt-column
+list, amplifier, or feature builder change. See the run logs and
+`plots/` outputs for the current numbers.
 
 ## Primary references
 
-- **Nestor, B. et al. (2019).** *Feature Robustness in Non-stationary Health
-  Records: Caveats to Deployable Model Performance in Common Clinical
-  Machine Learning Tasks.* Proceedings of Machine Learning for Healthcare
-  (MLHC 2019), PMLR 106. arXiv:1908.00690.
-  → The canonical empirical demonstration that the ICD-9→ICD-10 transition
-  and adjacent EHR policy changes cause measurable degradation in MIMIC
-  mortality / phenotyping models trained on pre-transition data. The drift
-  narrative and the "ICD-coded features are the non-stationary ones" framing
-  used here are taken directly from this paper.
+- **Nestor, B. et al. (2019).** *Feature Robustness in Non-stationary
+  Health Records: Caveats to Deployable Model Performance in Common
+  Clinical Machine Learning Tasks.* Proceedings of Machine Learning for
+  Healthcare (MLHC 2019), PMLR 106. arXiv:1908.00690.
+  → The canonical empirical demonstration that EHR coding-system
+  transitions cause measurable degradation in MIMIC mortality /
+  phenotyping models trained on pre-transition data. The "EHR-coded
+  features are the non-stationary ones" framing used here is taken
+  directly from this paper.
 
-- **Hsu, T.-M. H., Qi, H. & Brown, M. (2019).** *Measuring the Effects of
-  Non-Identical Data Distribution for Federated Visual Classification.*
-  arXiv:1909.06335.
-  → The origin of the `Dir(α · 1_K)` per-category partitioning used here
-  (the `--cncntrtn` flag is exactly this α). We apply it over care units
-  instead of classes, but the partitioning recipe and the role of α as the
-  sole knob controlling non-IID-ness are unchanged.
+- **McDonald, C. J., Huff, S. M., Suico, J. G., et al. (2003).**
+  *LOINC, a Universal Standard for Identifying Laboratory Observations:
+  A 5-Year Update.* Clinical Chemistry 49(4), 624–633.
+  → Foundational LOINC reference; explains why mapping local lab
+  itemids onto LOINC is many-to-one / one-to-many and therefore
+  produces column reshuffles when a hospital migrates.
 
-- **Boyd, A. D. et al. (2013).** *A Method to Determine the Compatibility of
-  Information Models by Analysing the ICD-9 to ICD-10-CM Mapping.* AMIA
-  Annual Symposium Proceedings.
-  → Documents the many-to-many nature of ICD-9↔ICD-10 GEMs mappings and
-  the chapter-level unevenness of remap ambiguity — the structural basis
-  for why mental-health, external-cause and injury chapters are singled
-  out in the corrupt-group predicate.
+- **Lin, M. C., Vreeman, D. J., McDonald, C. J., Huff, S. M. (2012).**
+  *Auditing consistency and usefulness of LOINC use among three large
+  institutions — using version spaces for grouping LOINC codes.*
+  Journal of Biomedical Informatics 45(4), 658–666.
+  → Documents inter-hospital inconsistency in LOINC mapping for the
+  same underlying assay — the structural reason a "post-migration"
+  feature schema differs across institutions even after both have
+  nominally adopted LOINC.
+
+- **Hsu, T.-M. H., Qi, H. & Brown, M. (2019).** *Measuring the Effects
+  of Non-Identical Data Distribution for Federated Visual
+  Classification.* arXiv:1909.06335.
+  → The origin of the `Dir(α · 1_K)` per-category partitioning used
+  for the CheXpert custom split. The MIMIC custom split is *not*
+  Dirichlet-based; it is a strict-partition specialisation, but the
+  original Hsu et al. recipe is the conceptual ancestor.
 
 - **Johnson, A. E. W. et al. (2023).** *MIMIC-IV, a freely accessible
   electronic health record dataset.* Scientific Data 10, 1.
@@ -136,7 +235,6 @@ real-world event in US clinical data.
 - **Harutyunyan, H., Khachatrian, H., Kale, D. C., Ver Steeg, G., &
   Galstyan, A. (2019).** *Multitask learning and benchmarking with
   clinical time series data.* Scientific Data 6, 96.
-  → Establishes the in-hospital-mortality-from-first-ICU-stay benchmark
-  cohort on MIMIC-III that MIMIC-IV work inherits; our cohort definition
-  (first ICU stay per admission, `hospital_expire_flag` label, ≈11%
-  mortality) follows this convention.
+  → Establishes the in-hospital-mortality-from-first-ICU-stay
+  benchmark cohort on MIMIC-III that MIMIC-IV work inherits; our
+  cohort definition follows this convention.

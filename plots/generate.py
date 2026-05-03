@@ -87,7 +87,7 @@ def _write_recovery_csv(rows, csv_path):
 # ---------------- TB object generation ----------------
 
 def convert_tb_data(root_dir, sort_by=None):
-    from tensorflow.python.summary.summary_iterator import summary_iterator
+    from tensorflow.compat.v1.train import summary_iterator
 
     def parse(e):
         return dict(

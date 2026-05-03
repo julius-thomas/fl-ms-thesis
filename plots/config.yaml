@@ -41,43 +41,55 @@ plots:
       ylim: [0, 1]
       scale: exp
 
-#  chexpert_non_iid_auroc:
-#    df_name: chexpert_non_iid_auroc
-#    source:
-#      tag: Server Mlauroc
-#      lines:
-#        - name: FedAvg
-#          path: "~/ma-logs/CheXpert"
-#          match: FedAvg_CheXpert_ResNet18_Vanilla_seed
-#        - name: MAX-CS
-#          path: "~/ma-logs/CheXpert"
-#          match: FedAvg_CheXpert_ResNet18_MaxCS_seed
-#        - name: UCB-CS
-#          path: "~/ma-logs/CheXpert"
-#          match: FedAvg_CheXpert_ResNet18_UCBStoch_seed
-#    plot:
-#      legend: [FedAvg, MAX-CS, UCB-CS]
-#      labels: {x: Round, y: AUROC}
-#      ylim: [0.5, 1]
-#
-#  chexpert_non_iid_acc:
-#    df_name: chexpert_non_iid_acc
-#    source:
-#      tag: Server Mlacc
-#      lines:
-#        - name: FedAvg
-#          path: "~/ma-logs/CheXpert"
-#          match: FedAvg_CheXpert_ResNet18_Vanilla_seed
-#        - name: MAX-CS
-#          path: "~/ma-logs/CheXpert"
-#          match: FedAvg_CheXpert_ResNet18_MaxCS_seed
-#        - name: UCB-CS
-#          path: "~/ma-logs/CheXpert"
-#          match: FedAvg_CheXpert_ResNet18_UCBStoch_seed
-#    plot:
-#      legend: [FedAvg, MAX-CS, UCB-CS]
-#      labels: {x: Round, y: Accuracy}
-#      ylim: [0, 1]
+  chexpert_non_iid_sud_auroc:
+    df_name: chexpert_non_iid_sud_auroc
+    source:
+      tag: Server Mlauroc
+      lines:
+        - name: FedAvg
+          path: "~/ma-logs/CheXpert/FEDAVG"
+          match: CHEXPERT_NON_IID_SUD_FEDAVG_seed
+        - name: MAX-CS
+          path: "~/ma-logs/CheXpert/MAXCS"
+          match: CHEXPERT_NON_IID_SUD_MAXCS_seed
+        - name: UCB-CS
+          path: "~/ma-logs/CheXpert/UCBCS"
+          match: CHEXPERT_NON_IID_SUD_UCBCS_seed
+        - name: UCB-CS (W=5)
+          path: "~/ma-logs/CheXpert/UCBCS_W5"
+          match: CHEXPERT_NON_IID_SUD_UCBCS_W5_seed
+        - name: UCB-CS (W=8)
+          path: "~/ma-logs/CheXpert/UCBCS_W8"
+          match: CHEXPERT_NON_IID_SUD_UCBCS_W8_seed
+    plot:
+      legend: [FedAvg, MAX-CS, UCB-CS, UCB-CS (W=5), UCB-CS (W=8)]
+      labels: {x: Round, y: AUROC}
+      ylim: [0.6, 0.8]
+
+  chexpert_non_iid_sud_acc:
+    df_name: chexpert_non_iid_sud_acc
+    source:
+      tag: Server Mlacc
+      lines:
+        - name: FedAvg
+          path: "~/ma-logs/CheXpert/FEDAVG"
+          match: CHEXPERT_NON_IID_SUD_FEDAVG_seed
+        - name: MAX-CS
+          path: "~/ma-logs/CheXpert/MAXCS"
+          match: CHEXPERT_NON_IID_SUD_MAXCS_seed
+        - name: UCB-CS
+          path: "~/ma-logs/CheXpert/UCBCS"
+          match: CHEXPERT_NON_IID_SUD_UCBCS_seed
+        - name: UCB-CS (W=5)
+          path: "~/ma-logs/CheXpert/UCBCS_W5"
+          match: CHEXPERT_NON_IID_SUD_UCBCS_W5_seed
+        - name: UCB-CS (W=8)
+          path: "~/ma-logs/CheXpert/UCBCS_W8"
+          match: CHEXPERT_NON_IID_SUD_UCBCS_W8_seed
+    plot:
+      legend: [FedAvg, MAX-CS, UCB-CS, UCB-CS (W=5), UCB-CS (W=8)]
+      labels: {x: Round, y: Accuracy}
+      ylim: [0.8, 0.83]
 
   mimic_non_iid_sud_acc:
     df_name: mimic_non_iid_sud_acc
@@ -90,21 +102,83 @@ plots:
         - name: MAX-CS
           path: "~/ma-logs/MIMIC4/MAXCS"
           match: MIMIC_NON_IID_SUD_MAXCS_seed
-        - name: UCB-CS (loss)
-          path: "~/ma-logs/MIMIC4/UCBCS"
-          match: MIMIC_NON_IID_SUD_UCBCS_seed
-        - name: 'UCB-CS ($\Delta$loss)'
-          path: "~/ma-logs/MIMIC4/UCBCS_DELTA"
-          match: MIMIC_NON_IID_SUD_UCBCS_DELTA_seed
-        - name: 'UCB-CS ($\|\Delta w\|$)'
-          path: "~/ma-logs/MIMIC4/UCBCS_PARAM"
-          match: MIMIC_NON_IID_SUD_UCBCS_PARAM_seed
+#        - name: UCB-CS (loss)
+#          path: "~/ma-logs/MIMIC4/UCBCS"
+#          match: MIMIC_NON_IID_SUD_UCBCS_seed
+        - name: UCB-CS (W=5)
+          path: "~/ma-logs/MIMIC4/UCBCS_W5"
+          match: MIMIC_NON_IID_SUD_UCBCS_W5_seed
+        - name: UCB-CS (W=8)
+          path: "~/ma-logs/MIMIC4/UCBCS_W8"
+          match: MIMIC_NON_IID_SUD_UCBCS_W8_seed
     plot:
       legend:
         - FedAvg
         - MAX-CS
-        - UCB-CS (loss)
-        - 'UCB-CS ($\Delta$loss)'
-        - 'UCB-CS ($\|\Delta w\|$)'
+#        - UCB-CS (loss)
+        - UCB-CS (W=5)
+        - UCB-CS (W=8)
       labels: {x: Round, y: Accuracy}
-      ylim: [0.0, 0.93]
+      ylim: [0.8, 0.92]
+
+  mimic_non_iid_sud_auprc:
+    df_name: mimic_non_iid_sud_auprc
+    source:
+      tag: Server Auprc
+      lines:
+        - name: FedAvg
+          path: "~/ma-logs/MIMIC4/FEDAVG"
+          match: MIMIC_NON_IID_SUD_FEDAVG_seed
+        - name: MAX-CS
+          path: "~/ma-logs/MIMIC4/MAXCS"
+          match: MIMIC_NON_IID_SUD_MAXCS_seed
+#        - name: UCB-CS (loss)
+#          path: "~/ma-logs/MIMIC4/UCBCS"
+#          match: MIMIC_NON_IID_SUD_UCBCS_seed
+        - name: UCB-CS (W=5)
+          path: "~/ma-logs/MIMIC4/UCBCS_W5"
+          match: MIMIC_NON_IID_SUD_UCBCS_W5_seed
+        - name: UCB-CS (W=8)
+          path: "~/ma-logs/MIMIC4/UCBCS_W8"
+          match: MIMIC_NON_IID_SUD_UCBCS_W8_seed
+    plot:
+      legend:
+        - FedAvg
+        - MAX-CS
+#        - UCB-CS (loss)
+        - UCB-CS (W=5)
+        - UCB-CS (W=8)
+      labels: {x: Round, y: AUPRC}
+      ylim: [0.55, 0.7]
+      xlim: [390, 440]
+
+  mimic_non_iid_sud_auprc_init:
+    df_name: mimic_non_iid_sud_auprc
+    source:
+      tag: Server Auprc
+      lines:
+        - name: FedAvg
+          path: "~/ma-logs/MIMIC4/FEDAVG"
+          match: MIMIC_NON_IID_SUD_FEDAVG_seed
+        - name: MAX-CS
+          path: "~/ma-logs/MIMIC4/MAXCS"
+          match: MIMIC_NON_IID_SUD_MAXCS_seed
+        #        - name: UCB-CS (loss)
+        #          path: "~/ma-logs/MIMIC4/UCBCS"
+        #          match: MIMIC_NON_IID_SUD_UCBCS_seed
+        - name: UCB-CS (W=5)
+          path: "~/ma-logs/MIMIC4/UCBCS_W5"
+          match: MIMIC_NON_IID_SUD_UCBCS_W5_seed
+        - name: UCB-CS (W=8)
+          path: "~/ma-logs/MIMIC4/UCBCS_W8"
+          match: MIMIC_NON_IID_SUD_UCBCS_W8_seed
+    plot:
+      legend:
+        - FedAvg
+        - MAX-CS
+        #        - UCB-CS (loss)
+        - UCB-CS (W=5)
+        - UCB-CS (W=8)
+      labels: { x: Round, y: AUPRC }
+      ylim: [ 0.5, 0.7 ]
+      xlim: [ 0, 250 ]

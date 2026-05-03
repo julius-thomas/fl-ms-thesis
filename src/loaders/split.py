@@ -205,16 +205,20 @@ def simulate_split(args, dataset):
 def _custom_split(args, dataset):
     """Dispatch to the dataset-specific `custom` heterogeneous split.
 
-    MIMIC4   : Dirichlet over `first_careunit` (each client's mix of ICUs
-               is drawn from Dir(alpha), producing a continuous spectrum of
-               care-unit concentration across clients).
+    MIMIC4   : Strict care-unit allocation — every client is assigned the
+               samples of exactly one care unit.  Clients per care unit are
+               allocated proportional to the unit's size (floor 1).  This
+               maximises the per-client drift-severity gradient because the
+               ICD-9 -> ICD-10 corrupt-group prevalence is strongly
+               correlated with care unit (e.g. TSICU ~= 100% corrupt,
+               CCU/CVICU ~= 0%).  `--cncntrtn` is unused.
     CheXpert : Dirichlet over `has_lateral` (each client's mix of samples
                with vs. without a lateral twin is drawn from Dir(alpha);
                combined with the lateral-swap drift, this yields a per-client
                drift-severity gradient).
     """
     if args.dataset == 'MIMIC4':
-        return _mimic_dirichlet_by_careunit(args, dataset)
+        return _mimic_strict_by_careunit(args, dataset)
     if args.dataset == 'CheXpert':
         return _chexpert_dirichlet_by_pairing(args, dataset)
     raise NotImplementedError(
@@ -222,13 +226,21 @@ def _custom_split(args, dataset):
     )
 
 
-def _mimic_dirichlet_by_careunit(args, dataset):
-    """Dirichlet(alpha) partition of ICU admissions by `first_careunit`.
+def _mimic_strict_by_careunit(args, dataset):
+    """Strict one-care-unit-per-client partition of ICU admissions.
 
-    For each care unit c we sample q_c ~ Dir(alpha * 1_K) and distribute
-    that unit's records across the K clients proportional to q_c.  Small
-    alpha (e.g. 0.3) yields strongly skewed mixes; large alpha approaches
-    uniform.  The `--cncntrtn` flag controls alpha.
+    Every client is assigned samples from exactly one `first_careunit`.
+    Care units are allocated multiple clients in proportion to their sample
+    count (largest-remainder method, floor 1).  Within a care unit the
+    samples are shuffled and split evenly across the clients allocated to
+    that unit.
+
+    This maximises the per-client drift-severity gradient: corrupt-group
+    prevalence is strongly correlated with care unit (TSICU ~= all corrupt,
+    CCU/CVICU ~= none), so strict partitioning produces clients that are
+    effectively immune or fully exposed to the ICD-9 -> ICD-10 drift.
+
+    `--cncntrtn` is not used by this split.
     """
     care_units = getattr(dataset, 'care_units', None)
     if care_units is None:
@@ -237,50 +249,57 @@ def _mimic_dirichlet_by_careunit(args, dataset):
             'cannot build custom care-unit split.'
         )
     care_units = np.asarray(care_units)
-    unique_cus, inverse = np.unique(care_units, return_inverse=True)
-    K, alpha = int(args.K), float(args.cncntrtn)
+    unique_cus, inverse, counts = np.unique(
+        care_units, return_inverse=True, return_counts=True
+    )
+    K = int(args.K)
+    if K < len(unique_cus):
+        raise ValueError(
+            f'[SIMULATE] [MIMIC4] strict care-unit split requires K >= '
+            f'{len(unique_cus)} (one client per care unit); got K={K}.'
+        )
     rng = np.random.default_rng(args.seed)
 
-    assigned = [[] for _ in range(K)]
-    for c_idx, cu in enumerate(unique_cus):
+    # Largest-remainder allocation: floor 1 per unit, distribute the rest
+    # proportional to unit size.
+    alloc = np.ones(len(unique_cus), dtype=int)
+    remaining = K - len(unique_cus)
+    if remaining > 0:
+        quotas = counts.astype(float) / counts.sum() * remaining
+        floors = np.floor(quotas).astype(int)
+        alloc += floors
+        leftover = remaining - floors.sum()
+        if leftover > 0:
+            top = np.argsort(-(quotas - floors))[:leftover]
+            alloc[top] += 1
+
+    assigned = [None] * K
+    next_k = 0
+    for c_idx, (cu, n_clients) in enumerate(zip(unique_cus, alloc)):
         idx_c = np.where(inverse == c_idx)[0]
         rng.shuffle(idx_c)
-        q = rng.dirichlet([alpha] * K)
-        cuts = np.round(np.cumsum(q) * len(idx_c)).astype(int)
-        cuts[-1] = len(idx_c)
-        prev = 0
-        for k in range(K):
-            assigned[k].extend(idx_c[prev:cuts[k]].tolist())
-            prev = cuts[k]
+        chunks = np.array_split(idx_c, int(n_clients))
+        for chunk in chunks:
+            assigned[next_k] = chunk.astype(np.int64)
+            next_k += 1
 
-    # Drop empty clients by redistributing a few samples from the largest.
-    sizes = [len(a) for a in assigned]
-    for k in range(K):
-        if sizes[k] == 0:
-            donor = int(np.argmax(sizes))
-            share = max(1, sizes[donor] // 50)
-            assigned[k].extend(assigned[donor][-share:])
-            del assigned[donor][-share:]
-            sizes = [len(a) for a in assigned]
-
-    # Log the per-client care-unit mix so severity can be sanity-checked.
     logger.info(
-        '[SIMULATE] [MIMIC4] custom split: Dir(alpha=%.3f) over %d care units '
-        '(%s) across %d clients.',
-        alpha, len(unique_cus), ', '.join(map(str, unique_cus)), K,
+        '[SIMULATE] [MIMIC4] custom split: strict care-unit allocation '
+        'across %d clients.', K,
     )
-    for k in range(K):
-        cu_counts = np.bincount(inverse[assigned[k]], minlength=len(unique_cus))
-        top = np.argsort(-cu_counts)[:3]
-        mix = ', '.join(
-            f'{unique_cus[i]}={cu_counts[i]}' for i in top if cu_counts[i] > 0
+    for c_idx, cu in enumerate(unique_cus):
+        logger.info(
+            '[SIMULATE] [MIMIC4]   %s: n=%d samples -> %d clients',
+            cu, int(counts[c_idx]), int(alloc[c_idx]),
         )
+    for k in range(K):
+        cu_label = unique_cus[inverse[assigned[k][0]]] if len(assigned[k]) else '<empty>'
         logger.debug(
-            '[SIMULATE] [MIMIC4] client %03d: n=%d | top: %s',
-            k, len(assigned[k]), mix,
+            '[SIMULATE] [MIMIC4] client %03d: n=%d | %s',
+            k, len(assigned[k]), cu_label,
         )
 
-    return {k: np.asarray(assigned[k], dtype=np.int64) for k in range(K)}
+    return {k: assigned[k] for k in range(K)}
 
 
 def _chexpert_dirichlet_by_pairing(args, dataset):

@@ -128,57 +128,81 @@ _ICD10_PCS_BODY = {
 
 
 # ============================================================
-# ICD-9 -> ICD-10 drift  (mapping-table corruption)
+# Lab itemid migration drift  (LOINC re-coding)
 # ============================================================
 #
 # Real-world narrative
 # --------------------
-# When US hospitals switched from ICD-9 to ICD-10 on 2015-10-01, different
-# IT vendors shipped different crosswalk implementations.  Some hospitals
-# applied the CMS GEMs correctly; others produced scrambled chapter
-# assignments — this happened disproportionately for the chapters whose
-# ICD-9 -> ICD-10 remaps were the messiest:
+# Alongside the 2015 ICD-10 rollout, many US hospitals transitioned their
+# laboratory subsystems from local itemids to the LOINC standard.  Because
+# LOINC uses a different item taxonomy than the legacy itemid schemas,
+# records aggregated under the old itemid columns end up attributed to
+# different LOINC columns after migration.  The chemical content of the
+# measurement is unchanged — a sodium value is still a sodium value — but
+# the column in which that value is stored (and which the model's learned
+# weights multiply) shifts.
 #
-#   * mental-health codes       (F-codes; expanded ~3x, many-to-many maps)
-#   * external-cause codes      (E/V  -> V/W/X/Y with laterality)
-#   * injury codes              (S/T  with episode-of-care qualifier)
+# The rename is scoped to **lab columns** (`lab_*`).  Diagnosis chapters
+# (`dx_*`), procedures (`px_*`), demographics, care unit, and admission
+# metadata live in separate EHR subsystems that were not part of the lab
+# migration and are unchanged.
 #
-# A patient with any diagnoses in those chapters was *exposed* to the bad
-# crosswalk and ends up in our "corrupt" group.  Care units differ in their
-# exposure rate — trauma (TSICU) and medical (MICU) ICUs are heavily
-# affected; cardiac ICUs (CCU/CVICU) are not — so combined with the
-# Dirichlet-over-care-unit split, corruption severity varies strongly per
-# client.
+# The rename is universal across patients: once the hospital migrates, every
+# new admission is coded under the LOINC schema.  This is deliberate — see
+# earlier revisions of this comment for the argument — but in short: if
+# only some patients were recoded the model would have to serve two
+# contradictory label-to-column mappings with shared weights
+# (impossible for linear models) and would settle on ignoring the affected
+# columns.  Applying the rename universally gives the model a single new
+# target mapping to re-learn: w_new = P @ w_old, where P is the permutation
+# applied to the renamed columns.
 #
-# Implementation
-# --------------
-# For each admission we compute:
-#   is_corrupt(patient) = (dx_mental > 0) OR (dx_external > 0) OR (dx_injury > 0)
+# Why labs (not dx)?
+# ------------------
+# An earlier version of this drift permuted only the `dx_*` columns.  Weight
+# inspection on a trained LogReg showed those columns carry ~3.5% of the
+# total weight mass (labs carry ~60%) — the model had learned to ignore
+# diagnosis chapter distributions entirely.  Permuting dead weights
+# produced a weak, homogeneous drift that client-selection policies could
+# not meaningfully differentiate on.  Labs are the dominant mortality
+# predictors in this LogReg, so permuting them is what actually exercises
+# the drift-recovery capabilities of the selection algorithms.
 #
-# At drift_start the server flips `drift_active = True`.  From then on,
-# corrupt patients have a fixed *column permutation* applied to their scaled
-# feature vector — the model's learned weights now multiply the wrong
-# columns, producing deliberately wrong predictions.  Non-corrupt patients
-# keep the canonical view.
-_CORRUPT_PREDICATE_COLS = ('dx_mental', 'dx_external', 'dx_injury')
+# Why only some labs?
+# -------------------
+# A full lab permutation (all 45 columns) hits every patient's feature
+# vector with roughly equal magnitude — labs are dense — which dampens
+# the per-care-unit severity gradient that client-selection algorithms
+# need to differentiate on.  Narrowing the scope to four labs whose
+# values are sharply distributed by care unit (troponin / cardiac;
+# lactate / trauma; BUN, creatinine / chronic kidney disease in
+# medical ICU populations) restores the structural per-client gradient:
+# CCU patients have characteristically high troponin, TSICU patients
+# have characteristically high lactate, etc., so when those columns get
+# shuffled the magnitude of the resulting logit shift varies sharply
+# by care unit.  Narrative: "the LOINC migration was partial — chemistry
+# and cardiac panels migrated first; coags, hematology, and the rest
+# stayed on legacy itemids."
+#
+# Pattern matching
+# ----------------
+# `_CORRUPT_COLUMN_PATTERNS` are substrings; a feature column is included
+# in the permutation if any pattern occurs anywhere in its name.  That
+# matches `lab_mean_troponin`, `lab_max_troponin`, `lab_min_troponin` for
+# the pattern "troponin", and likewise for the other names.
+_CORRUPT_COLUMN_PATTERNS = ('troponin', 'lactate', 'bun', 'creatinine')
 
-# Column groups targeted by the corruption — every ICD-derived column gets
-# shuffled within this set.  Narrative: a badly broken crosswalk doesn't just
-# swap two chapters, it scrambles every chapter-derived column and inflates
-# counts (because codes get mis-routed into multiple chapters).
-_CORRUPT_COLUMN_PREFIXES = ('dx_', 'px_', 'num_diagnoses', 'num_procedures')
-
-# Magnitude amplifier applied to shuffled columns for corrupt admissions.
-# Simulates the inflation that happens when a broken crosswalk duplicates
-# codes across multiple chapters.  Combined with shuffling, this pushes
-# LogReg logits far enough that predictions flip.
+# Magnitude amplifier applied to renamed columns.  A realistic crosswalk
+# wouldn't change magnitudes, but a small amp here forces the model to
+# actually fit the permuted weights rather than down-weight the affected
+# region.
 _CORRUPT_AMP = 4.0
 
 
 def _build_corruption_perm(feature_cols, seed=0):
-    """Build a column permutation that shuffles all ICD-derived columns
-    within themselves, leaving everything else (labs, demographics, care
-    unit, insurance, etc.) untouched.  Deterministic given ``seed``.
+    """Build a column permutation that shuffles every column whose name
+    contains a `_CORRUPT_COLUMN_PATTERNS` substring within itself, leaving
+    every other column untouched.  Deterministic given ``seed``.
 
     Returns (perm, shuffled_indices):
         perm[i] = source column index fed into destination column i
@@ -186,7 +210,7 @@ def _build_corruption_perm(feature_cols, seed=0):
     """
     rng = np.random.default_rng(seed)
     icd_idx = [i for i, c in enumerate(feature_cols)
-               if c.startswith(_CORRUPT_COLUMN_PREFIXES)]
+               if any(p in c for p in _CORRUPT_COLUMN_PATTERNS)]
     if not icd_idx:
         return list(range(len(feature_cols))), []
     shuffled = icd_idx.copy()
@@ -209,22 +233,20 @@ def _build_corruption_perm(feature_cols, seed=0):
 class MIMIC4(torch.utils.data.Dataset):
     """MIMIC-IV tabular dataset for in-hospital mortality prediction.
 
-    Holds the canonical (``inputs_normal``) and the mapping-corrupted
-    (``inputs_corrupt``) feature matrices of identical shape, plus a boolean
-    ``is_corrupt`` mask identifying which admissions belong to the corrupt
-    group.  While ``drift_active`` is ``False`` all admissions are served
-    from ``inputs_normal``.  Once the server flips ``drift_active = True``,
-    admissions in the corrupt group are served from ``inputs_corrupt``
-    (column-permuted to simulate a scrambled ICD-9 -> ICD-10 crosswalk);
-    non-corrupt admissions continue to use ``inputs_normal``.
+    Holds the pre-rename (``inputs_normal``) and post-rename
+    (``inputs_corrupt``) feature matrices of identical shape.  While
+    ``drift_active`` is ``False`` every admission is served from
+    ``inputs_normal`` (old ICD chapter taxonomy).  Once the server flips
+    ``drift_active = True`` at ``drift_start`` every admission is served
+    from ``inputs_corrupt`` (new ICD chapter taxonomy — same patients, same
+    outcomes, diagnosis columns renamed).
     """
 
-    def __init__(self, identifier, inputs_normal, inputs_corrupt, is_corrupt,
+    def __init__(self, identifier, inputs_normal, inputs_corrupt,
                  targets, scaler=None, care_units=None):
         self.identifier = identifier
         self.inputs_normal = inputs_normal
         self.inputs_corrupt = inputs_corrupt
-        self.is_corrupt = is_corrupt
         self.targets = targets
         self.scaler = scaler
         self.care_units = care_units  # raw labels for FL partitioning
@@ -234,10 +256,7 @@ class MIMIC4(torch.utils.data.Dataset):
         return len(self.inputs_normal)
 
     def __getitem__(self, index):
-        if self.drift_active and self.is_corrupt[index]:
-            x = self.inputs_corrupt[index]
-        else:
-            x = self.inputs_normal[index]
+        x = self.inputs_corrupt[index] if self.drift_active else self.inputs_normal[index]
         return (
             torch.tensor(x).float(),
             torch.tensor(self.targets[index]).long(),
@@ -570,22 +589,25 @@ def fetch_mimic4(args, root):
     # Separate targets, care units, features
     targets = df['hospital_expire_flag'].values.astype(np.int64)
     # Use the grouped label so the partition axis matches the one-hot columns
-    # the model sees (CAREUNIT_MAP collapses rare units into 'Other').
-    care_units = (
-        pd.Series(df['first_careunit'].values).map(CAREUNIT_MAP).fillna('Other').values
-    )
+    # the model sees.  Admissions whose raw careunit does not map to any known
+    # group (fallback "Other") are dropped: they're too few to form a useful
+    # client under strict care-unit partitioning, and loss-based selectors
+    # waste slots on the resulting n≈46 client.
+    careunit_grouped = pd.Series(df['first_careunit'].values).map(CAREUNIT_MAP)
+    keep_mask = careunit_grouped.notna().values
+    dropped = int((~keep_mask).sum())
+    if dropped:
+        logger.info(
+            '[LOAD] [MIMIC4] dropping %d admission(s) with unmapped '
+            'first_careunit (cohort: %d -> %d)', dropped, len(df), int(keep_mask.sum()),
+        )
+    df = df.loc[keep_mask].reset_index(drop=True)
+    targets = targets[keep_mask]
+    care_units = careunit_grouped.loc[keep_mask].values
     feature_cols = sorted(
         c for c in df.columns
         if c not in ('hadm_id', 'hospital_expire_flag', 'first_careunit')
     )
-
-    # Compute the deterministic corruption mask from the raw feature frame
-    # (before scaling).  A patient is "corrupt" iff they had any diagnosis
-    # in the chapters whose ICD-9 -> ICD-10 crosswalks were the messiest.
-    is_corrupt = np.zeros(len(df), dtype=bool)
-    for c in _CORRUPT_PREDICATE_COLS:
-        if c in df.columns:
-            is_corrupt |= (df[c].values > 0)
 
     # Canonical feature matrix — what the model learns on, and what every
     # admission looks like before `drift_start`.
@@ -611,10 +633,10 @@ def fetch_mimic4(args, root):
     train_normal = scaler.fit_transform(inputs[train_idx])
     test_normal = scaler.transform(inputs[test_idx])
 
-    # Build the corrupted feature matrix: shuffle every ICD-derived column
-    # within itself, then amplify those columns.  `perm` is applied to the
-    # scaled canonical matrix; the amplifier multiplies only the shuffled
-    # columns afterwards.
+    # Build the post-rename feature matrix: permute every column whose name
+    # contains a `_CORRUPT_COLUMN_PATTERNS` substring within that group, leave
+    # every other column fixed, then amplify only the permuted columns.  At
+    # drift_start every admission switches to this view.
     perm, shuffled_idx = _build_corruption_perm(feature_cols, seed=args.seed)
     perm = np.asarray(perm, dtype=np.int64)
     amp = np.ones(len(feature_cols), dtype=np.float32)
@@ -623,22 +645,21 @@ def fetch_mimic4(args, root):
     test_corrupt = (test_normal[:, perm] * amp).astype(np.float32)
 
     logger.info(
-        '[LOAD] [MIMIC4] corrupt group: %d / %d admissions (%.1f%%); '
-        'predicate: %s; shuffled %d ICD-derived columns; magnitude amp x%.1f',
-        int(is_corrupt.sum()), len(is_corrupt),
-        100.0 * is_corrupt.mean(),
-        ' | '.join(c for c in _CORRUPT_PREDICATE_COLS if c in df.columns),
-        len(shuffled_idx), _CORRUPT_AMP,
+        '[LOAD] [MIMIC4] post-drift column rename: permuted %d column(s) '
+        '(scope: %s), magnitude amp x%.1f; applied universally to all %d admissions.',
+        len(shuffled_idx),
+        ' | '.join(_CORRUPT_COLUMN_PATTERNS),
+        _CORRUPT_AMP, len(inputs),
     )
 
     raw_train = MIMIC4(
         '[MIMIC4] Mortality (train)',
-        train_normal, train_corrupt, is_corrupt[train_idx],
+        train_normal, train_corrupt,
         targets[train_idx], scaler, care_units[train_idx],
     )
     raw_test = MIMIC4(
         '[MIMIC4] Mortality (test)',
-        test_normal, test_corrupt, is_corrupt[test_idx],
+        test_normal, test_corrupt,
         targets[test_idx], scaler, care_units[test_idx],
     )
 
