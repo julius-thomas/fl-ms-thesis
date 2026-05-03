@@ -7,7 +7,7 @@
 : "${EXP_SUFFIX:=}"
 
 python3 main.py \
-    --exp_name "MNIST_NON_IID_SUD_UCBCS_W5${EXP_SUFFIX}" --seed ${SEED} --device mps \
+    --exp_name "MNIST_NON_IID_SUD_UCBCS_W5${EXP_SUFFIX}" --seed ${SEED} --device cuda \
     --dataset MNIST \
     --split_type patho --test_size 0 \
     --model_name TwoCNN --resize 28 --hidden_size 200 \
