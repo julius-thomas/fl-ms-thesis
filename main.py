@@ -82,9 +82,11 @@ if __name__ == "__main__":
     parser.add_argument('--sampling_type', help='type of client selection; `max` (top-K by loss), `stoch` (Boltzmann softmax)', type=str, default='max')
     parser.add_argument('--temp', help='Boltzmann temperature for stochastic sampling', type=float, default=0.5)
     parser.add_argument('--candidate_sampling', help='how to form the initial candidate set before active sampling; `uniform` (random) or `ucb` (UCB1 over all clients)', type=str, default='uniform', choices=['uniform', 'ucb'])
-    parser.add_argument('--ucb_c', help='UCB exploration constant (only used when --candidate_sampling ucb)', type=float, default=1.0)
-    parser.add_argument('--ucb_signal', help='reward signal used to update UCB mu_i; `loss` (pre-training loss on candidate pool), `delta_loss` (L_before - L_after on final-selected), `param_drift` (||w_local - w_global|| on final-selected)', type=str, default='loss', choices=['loss', 'delta_loss', 'param_drift'])
-    parser.add_argument('--ucb_window', help='sliding-window size for UCB reward memory (number of rounds); 0 = infinite (plain UCB, keep all history)', type=int, default=0)
+    parser.add_argument('--ucb_c', help='UCB exploration constant for candidate sampling (only used when --candidate_sampling ucb)', type=float, default=1.0)
+    parser.add_argument('--ucb_signal', help='reward signal used to update candidate-sampling UCB mu_i; `loss` (pre-training loss on candidate pool), `delta_loss` (L_before - L_after on final-selected), `param_drift` (||w_local - w_global|| on final-selected)', type=str, default='loss', choices=['loss', 'delta_loss', 'param_drift'])
+    parser.add_argument('--ucb_variant', help='reward-memory model for candidate-sampling UCB; `plain` (full history), `sliding` (sliding-window UCB; uses --ucb_window), `discounted` (discounted UCB a la Garivier & Moulines; uses --ucb_gamma)', type=str, default='plain', choices=['plain', 'sliding', 'discounted'])
+    parser.add_argument('--ucb_window', help='sliding-window size in rounds for --ucb_variant sliding; ignored otherwise', type=int, default=50)
+    parser.add_argument('--ucb_gamma', help='discount factor in (0,1] for --ucb_variant discounted; weights round-s reward by gamma^(t-s). Ignored otherwise.', type=float, default=0.95)
 
     #####################
     # Default arguments #

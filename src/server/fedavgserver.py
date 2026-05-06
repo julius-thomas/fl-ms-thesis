@@ -73,8 +73,10 @@ class FedavgServer(BaseServer):
             else:
                 K = int(self.args.K)
                 # Per-client reward history: list of (round, reward) tuples.
-                # Windowed UCB computes mu_hat_i and n_i on-the-fly from entries
-                # within the last --ucb_window rounds (0 => infinite / full history).
+                # Read-time aggregation depends on --ucb_variant:
+                #   plain      => mean over all entries
+                #   sliding    => mean over entries within the last --ucb_window rounds
+                #   discounted => gamma^(t-s)-weighted mean (Garivier & Moulines D-UCB)
                 self.ucb_history = [[] for _ in range(K)]
 
     def _init_model(self, model):
@@ -427,35 +429,64 @@ class FedavgServer(BaseServer):
         if start <= self.round <= (start + dur):
             self.drift_std = max(0.0, min(1.0, (self.round - start) / dur))
 
-    def _ucb_windowed_stats(self):
-        """Per-client (mu_hat, n) over the last --ucb_window rounds (0 => all history)."""
+    def _ucb_stats(self):
+        """Per-client (mu_hat, N_eff) under the active --ucb_variant.
+
+        For sliding/plain, N_eff is an integer count of in-window observations
+        (window=0 => all history). For discounted UCB,
+        N_eff = sum_s gamma^(t-s) over rounds s arm i was pulled, and mu_hat
+        is the matching gamma^(t-s)-weighted mean.
+        """
         K = int(self.args.K)
-        W = int(getattr(self.args, 'ucb_window', 0))
+        variant = getattr(self.args, 'ucb_variant', 'plain')
         mu = np.zeros(K, dtype=np.float64)
-        n = np.zeros(K, dtype=np.int64)
-        for i in range(K):
-            hist = self.ucb_history[i]
-            if W <= 0:
-                vals = [r for (_, r) in hist]
-            else:
-                cutoff = self.round - W
-                vals = [r for (rd, r) in hist if rd > cutoff]
-            if vals:
-                n[i] = len(vals)
-                mu[i] = float(np.mean(vals))
-        return mu, n
+        N = np.zeros(K, dtype=np.float64)
+
+        if variant == 'discounted':
+            gamma = float(getattr(self.args, 'ucb_gamma', 1.0))
+            for i in range(K):
+                hist = self.ucb_history[i]
+                if not hist:
+                    continue
+                if gamma >= 1.0:
+                    N[i] = len(hist)
+                    mu[i] = float(np.mean([r for (_, r) in hist]))
+                else:
+                    num, den = 0.0, 0.0
+                    for (rd, r) in hist:
+                        w = gamma ** max(self.round - rd, 0)
+                        num += w * r
+                        den += w
+                    if den > 0:
+                        N[i] = den
+                        mu[i] = num / den
+        else:  # 'plain' or 'sliding'
+            W = int(getattr(self.args, 'ucb_window', 0)) if variant == 'sliding' else 0
+            for i in range(K):
+                hist = self.ucb_history[i]
+                if not hist:
+                    continue
+                if W <= 0:
+                    vals = [r for (_, r) in hist]
+                else:
+                    cutoff = self.round - W
+                    vals = [r for (rd, r) in hist if rd > cutoff]
+                if vals:
+                    N[i] = len(vals)
+                    mu[i] = float(np.mean(vals))
+        return mu, N
 
     def _ucb_sample_candidates(self):
         """Pick the candidate set via UCB1 over all K clients.
 
-        Score: mu_hat_i + c * sqrt(ln t / n_i), where t = sum(n_i). When
-        --ucb_window > 0, mu_hat_i and n_i are computed over only the last W
-        rounds; arms that fall out of the window are treated as unvisited and
-        drafted first (the sliding-window UCB staleness guarantee).
+        Score: mu_hat_i + c * sqrt(ln t / N_i), where t = sum(N_i) and
+        (mu_hat_i, N_i) are computed by `_ucb_stats` according to --ucb_variant.
+        Arms with N_i = 0 (never pulled, or pulled only outside the sliding
+        window) are drafted first.
         """
         K = int(self.args.K)
         m = max(int(self.args.C * K), 1)
-        mu_w, n_w = self._ucb_windowed_stats()
+        mu_w, n_w = self._ucb_stats()
 
         unvisited = np.where(n_w == 0)[0]
         if len(unvisited) >= m:
@@ -464,7 +495,8 @@ class FedavgServer(BaseServer):
             logger.info(
                 f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] '
                 f'[Round: {str(self.round).zfill(4)}] UCB cold-start: '
-                f'picked {m} unvisited (windowed) of {len(unvisited)} remaining.'
+                f'picked {m} unvisited of {len(unvisited)} remaining '
+                f'(variant={getattr(self.args, "ucb_variant", "plain")}).'
             )
             return sorted(chosen.tolist())
 
@@ -478,12 +510,18 @@ class FedavgServer(BaseServer):
         need = m - len(unvisited)
         top_local = np.argsort(-scores)[:need]
         chosen = np.concatenate([unvisited, visited[top_local]])
-        W = int(getattr(self.args, 'ucb_window', 0))
+        variant = getattr(self.args, 'ucb_variant', 'plain')
+        if variant == 'sliding':
+            param = f'W={int(getattr(self.args, "ucb_window", 0)) or "inf"}'
+        elif variant == 'discounted':
+            param = f'gamma={float(getattr(self.args, "ucb_gamma", 1.0))}'
+        else:
+            param = 'full-history'
         logger.info(
             f'[{self.args.algorithm.upper()}] [{self.args.dataset.upper()}] '
             f'[Round: {str(self.round).zfill(4)}] UCB candidate: '
             f'{len(unvisited)} unvisited + {need} by UCB score '
-            f'(t={int(t)}, c={self.args.ucb_c}, W={W if W > 0 else "inf"}).'
+            f'(t={t:.2f}, c={self.args.ucb_c}, variant={variant}, {param}).'
         )
         return sorted(chosen.tolist())
 
@@ -493,7 +531,8 @@ class FedavgServer(BaseServer):
         `client_rewards` is {cid: reward}. Higher reward -> more interesting arm.
         The reward is whichever signal --ucb_signal selects: pre-training loss,
         delta_loss (L_before - L_after), or param_drift (||w_local - w_global||).
-        Windowing (if enabled) is applied at read time in `_ucb_windowed_stats`.
+        Window/discount aggregation (per --ucb_variant) is applied at read
+        time in `_ucb_stats`.
         """
         for cid, reward in client_rewards.items():
             self.ucb_history[cid].append((int(self.round), float(reward)))
