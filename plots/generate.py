@@ -4,6 +4,7 @@ import argparse
 import yaml
 import math
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
 from os.path import isfile, join
 
@@ -87,29 +88,20 @@ def _write_recovery_csv(rows, csv_path):
 # ---------------- TB object generation ----------------
 
 def convert_tb_data(root_dir, sort_by=None):
-    from tensorflow.compat.v1.train import summary_iterator
+    from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
-    def parse(e):
-        return dict(
-            wall_time=e.wall_time,
-            name=e.summary.value[0].tag,
-            step=e.step,
-            value=float(e.summary.value[0].simple_value),
-        )
-
-    frames = []
+    rows = []
     for root, _, filenames in os.walk(root_dir):
-        for f in filenames:
-            if "events.out.tfevents" not in f:
-                continue
-            frames.append(
-                pd.DataFrame(
-                    [parse(e) for e in summary_iterator(os.path.join(root, f)) if len(e.summary.value)]
-                )
-            )
-    if not frames:
+        if not any("events.out.tfevents" in f for f in filenames):
+            continue
+        ea = EventAccumulator(root, size_guidance={"scalars": 0})
+        ea.Reload()
+        for tag in ea.Tags().get("scalars", []):
+            for e in ea.Scalars(tag):
+                rows.append((e.wall_time, tag, e.step, float(e.value)))
+    if not rows:
         return pd.DataFrame(columns=["wall_time", "name", "step", "value"])
-    df = pd.concat(frames)[["wall_time", "name", "step", "value"]]
+    df = pd.DataFrame(rows, columns=["wall_time", "name", "step", "value"])
     if sort_by is not None:
         df = df.sort_values(sort_by)
     return df.reset_index(drop=True)
@@ -466,9 +458,10 @@ def create_plot(df, cfg, output, plot_name_for_csv=None):
 
 # ---------------- Orchestration ----------------
 
-def generate_objects(config, tb_dir):
+def generate_objects(config, tb_dir, workers=1):
     os.makedirs(tb_dir, exist_ok=True)
     seen = set()
+    jobs = []
     for name, entry in config.get("plots", {}).items():
         df_name = entry.get("df_name", name)
         if df_name in seen:
@@ -482,8 +475,29 @@ def generate_objects(config, tb_dir):
         if not src:
             print(f"[miss] no source for {df_name} — place pickle in {tb_dir}")
             continue
-        print(f"[gen]  {df_name}")
-        build_tb_object(src, out_path)
+        jobs.append((df_name, src, out_path))
+
+    if not jobs:
+        return
+
+    if workers <= 1 or len(jobs) == 1:
+        for df_name, src, out_path in jobs:
+            print(f"[gen]  {df_name}")
+            build_tb_object(src, out_path)
+        return
+
+    n = min(workers, len(jobs))
+    print(f"[gen]  dispatching {len(jobs)} objects across {n} threads")
+    with ThreadPoolExecutor(max_workers=n) as ex:
+        futs = {ex.submit(build_tb_object, src, out_path): df_name
+                for df_name, src, out_path in jobs}
+        for fut in as_completed(futs):
+            df_name = futs[fut]
+            try:
+                fut.result()
+                print(f"[done] {df_name}")
+            except Exception as e:
+                print(f"[fail] {df_name}: {type(e).__name__}: {e}")
 
 
 def generate_plots(config, tb_dir, pdf_dir, csv_path=None):
@@ -520,13 +534,15 @@ def main():
     ap.add_argument("--csv", default=None, help="recovery-summary csv path")
     ap.add_argument("--skip-objects", action="store_true")
     ap.add_argument("--skip-plots", action="store_true")
+    ap.add_argument("--workers", type=int, default=min(8, (os.cpu_count() or 1)),
+                    help="parallel threads for object generation (default: min(8, cpu_count))")
     args = ap.parse_args()
 
     with open(args.config) as f:
         config = yaml.safe_load(f)
 
     if not args.skip_objects:
-        generate_objects(config, args.tb_dir)
+        generate_objects(config, args.tb_dir, workers=args.workers)
     if not args.skip_plots:
         csv = args.csv or os.path.join(args.pdf_dir, "recovery_summary.csv")
         generate_plots(config, args.tb_dir, args.pdf_dir, csv_path=csv)

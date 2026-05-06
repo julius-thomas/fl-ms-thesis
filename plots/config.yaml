@@ -24,19 +24,134 @@ plots:
       tag: Server Acc1
       lines:
         - name: FedAvg
-          path: "~/ma-logs/MNIST/FEDAVG"
+          path: "~/ma-logs/MNIST/SUD/FEDAVG"
           match: MNIST_NON_IID_SUD_FEDAVG_seed
         - name: MAX-CS
-          path: "~/ma-logs/MNIST/MAXCS"
+          path: "~/ma-logs/MNIST/SUD/MAXCS"
           match: MNIST_NON_IID_SUD_MAXCS_seed
         - name: UCB-CS
-          path: "~/ma-logs/MNIST/UCBCS"
+          path: "~/ma-logs/MNIST/SUD/UCBCS"
           match: MNIST_NON_IID_SUD_UCBCS_seed
         - name: UCB-CS (W=5)
-          path: "~/ma-logs/MNIST/UCBCS_W5"
+          path: "~/ma-logs/MNIST/SUD/UCBCS_W5"
           match: MNIST_NON_IID_SUD_UCBCS_W5_seed
     plot:
       legend: [FedAvg, MAX-CS, UCB-CS, UCB-CS (W=5)]
+      labels: {x: Round, y: Accuracy}
+      ylim: [0, 1]
+      scale: exp
+
+  mnist_non_iid_inc_acc:
+    df_name: mnist_non_iid_inc_acc
+    source:
+      tag: Server Acc1
+      lines:
+        - name: FedAvg
+          path: "~/ma-logs/MNIST/INC/FEDAVG"
+          match: MNIST_NON_IID_INC_FEDAVG_seed
+        - name: MAX-CS
+          path: "~/ma-logs/MNIST/INC/MAXCS"
+          match: MNIST_NON_IID_INC_MAXCS_seed
+        - name: UCB-CS
+          path: "~/ma-logs/MNIST/INC/UCBCS"
+          match: MNIST_NON_IID_INC_UCBCS_seed
+        - name: UCB-CS (W=5)
+          path: "~/ma-logs/MNIST/INC/UCBCS_W5"
+          match: MNIST_NON_IID_INC_UCBCS_W5_seed
+    plot:
+      legend: [FedAvg, MAX-CS, UCB-CS, UCB-CS (W=5)]
+      labels: {x: Round, y: Accuracy}
+      ylim: [0, 1]
+      scale: exp
+
+  fmnist_non_iid_inc_acc:
+    df_name: fmnist_non_iid_inc_acc
+    source:
+      tag: Server Acc1
+      lines:
+        - name: FedAvg
+          path: "~/ma-logs/FMNIST/INC/FEDAVG"
+          match: FMNIST_NON_IID_INC_FEDAVG_seed
+        - name: MAX-CS
+          path: "~/ma-logs/FMNIST/INC/MAXCS"
+          match: FMNIST_NON_IID_INC_MAXCS_seed
+        - name: UCB-CS
+          path: "~/ma-logs/FMNIST/INC/UCBCS"
+          match: FMNIST_NON_IID_INC_UCBCS_seed
+        - name: UCB-CS (W=5)
+          path: "~/ma-logs/FMNIST/INC/UCBCS_W5"
+          match: FMNIST_NON_IID_INC_UCBCS_W5_seed
+    plot:
+      legend: [FedAvg, MAX-CS, UCB-CS, UCB-CS (W=5)]
+      labels: {x: Round, y: Accuracy}
+      ylim: [0, 1]
+      scale: exp
+
+  e_mnist_ucbcs_c:
+    df_name: e_mnist_ucbcs_c
+    source:
+      tag: Server Acc1
+      lines:
+        - name: FedAvg
+          path: "~/ma-logs/MNIST/SUD/FEDAVG"
+          match: MNIST_NON_IID_SUD_FEDAVG_seed
+        - name: c=0.5
+          path: "~/ma-logs/MNIST_EXPLORE/UCBCS_C05"
+          match: MNIST_NON_IID_SUD_UCBCS_C05_seed
+        - name: c=1.0
+          path: "~/ma-logs/MNIST_EXPLORE/UCBCS_C10"
+          match: MNIST_NON_IID_SUD_UCBCS_C10_seed
+        - name: c=2.0
+          path: "~/ma-logs/MNIST_EXPLORE/UCBCS_C20"
+          match: MNIST_NON_IID_SUD_UCBCS_C20_seed
+    plot:
+      legend: [FedAvg, c=0.5, c=1.0, c=2.0]
+      labels: {x: Round, y: Accuracy}
+      ylim: [0, 1]
+      scale: exp
+
+  e_mnist_ucbcs_w:
+    df_name: e_mnist_ucbcs_w
+    source:
+      tag: Server Acc1
+      lines:
+        - name: FedAvg
+          path: "~/ma-logs/MNIST/SUD/FEDAVG"
+          match: MNIST_NON_IID_SUD_FEDAVG_seed
+        - name: W=5
+          path: "~/ma-logs/MNIST_EXPLORE/UCBCS_W5"
+          match: MNIST_NON_IID_SUD_UCBCS_W5_seed
+        - name: W=8
+          path: "~/ma-logs/MNIST_EXPLORE/UCBCS_W8"
+          match: MNIST_NON_IID_SUD_UCBCS_W8_seed
+        - name: W=12
+          path: "~/ma-logs/MNIST_EXPLORE/UCBCS_W12"
+          match: MNIST_NON_IID_SUD_UCBCS_W12_seed
+    plot:
+      legend: [FedAvg, W=5, W=8, W=12]
+      labels: {x: Round, y: Accuracy}
+      ylim: [0, 1]
+      scale: exp
+
+  e_mnist_ucbcs_g:
+    df_name: e_mnist_ucbcs_g
+    source:
+      tag: Server Acc1
+      lines:
+        - name: FedAvg
+          path: "~/ma-logs/MNIST/SUD/FEDAVG"
+          match: MNIST_NON_IID_SUD_FEDAVG_seed
+        - name: gamma=0.80
+          path: "~/ma-logs/MNIST_EXPLORE/UCBCS_G80"
+          match: MNIST_NON_IID_SUD_UCBCS_G80_seed
+        - name: gamma=0.90
+          path: "~/ma-logs/MNIST_EXPLORE/UCBCS_G90"
+          match: MNIST_NON_IID_SUD_UCBCS_G90_seed
+        - name: gamma=0.95
+          path: "~/ma-logs/MNIST_EXPLORE/UCBCS_G95"
+          match: MNIST_NON_IID_SUD_UCBCS_G95_seed
+    plot:
+      legend: [FedAvg, "$\\gamma=0.80$", "$\\gamma=0.90$", "$\\gamma=0.95$"]
       labels: {x: Round, y: Accuracy}
       ylim: [0, 1]
       scale: exp
