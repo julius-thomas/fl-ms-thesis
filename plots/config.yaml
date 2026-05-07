@@ -109,6 +109,8 @@ plots:
       labels: {x: Round, y: Accuracy}
       ylim: [0, 1]
       scale: exp
+      hlines: 0.97
+      vlines: 48
 
   e_mnist_ucbcs_w:
     df_name: e_mnist_ucbcs_w
@@ -132,6 +134,8 @@ plots:
       labels: {x: Round, y: Accuracy}
       ylim: [0, 1]
       scale: exp
+      hlines: 0.97
+      vlines: 48
 
   e_mnist_ucbcs_g:
     df_name: e_mnist_ucbcs_g
@@ -155,6 +159,8 @@ plots:
       labels: {x: Round, y: Accuracy}
       ylim: [0, 1]
       scale: exp
+      hlines: 0.97
+      vlines: 48
 
   chexpert_non_iid_sud_auroc:
     df_name: chexpert_non_iid_sud_auroc

@@ -445,6 +445,34 @@ def create_plot(df, cfg, output, plot_name_for_csv=None):
     if xlim:
         ax.set_xlim(xlim)
 
+    hlines = cfg.get("hlines")
+    if hlines is not None:
+        items = hlines if isinstance(hlines, (list, tuple)) else [hlines]
+        for h in items:
+            if isinstance(h, dict):
+                y = h["y"]
+                color = h.get("color", "0.4")
+                lw = h.get("linewidth", 0.8)
+                ls = h.get("linestyle", "--")
+                label = h.get("label")
+            else:
+                y, color, lw, ls, label = h, "0.4", 0.8, "--", None
+            ax.axhline(y=y, color=color, linewidth=lw, linestyle=ls, label=label)
+
+    vlines = cfg.get("vlines")
+    if vlines is not None:
+        items = vlines if isinstance(vlines, (list, tuple)) else [vlines]
+        for v in items:
+            if isinstance(v, dict):
+                xv = v["x"]
+                color = v.get("color", "0.4")
+                lw = v.get("linewidth", 0.8)
+                ls = v.get("linestyle", "--")
+                label = v.get("label")
+            else:
+                xv, color, lw, ls, label = v, "0.4", 0.8, "--", None
+            ax.axvline(x=xv, color=color, linewidth=lw, linestyle=ls, label=label)
+
     ax.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
     ax.set_xlabel(labels["x"])
     ax.set_ylabel(labels["y"])
