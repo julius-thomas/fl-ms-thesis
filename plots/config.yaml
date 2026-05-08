@@ -87,6 +87,26 @@ plots:
       ylim: [0, 1]
       scale: exp
 
+  fmnist_non_diri_acc:
+    df_name: fmnist_non_diri_acc
+    source:
+      tag: Server Acc1
+      lines:
+        - name: FedAvg
+          path: "~/ma-logs/FMNIST/non_diri/FEDAVG"
+          match: FMNIST_NON_IID_SUD_FEDAVG_seed
+        - name: MAX-CS
+          path: "~/ma-logs/FMNIST/non_diri/MAXCS"
+          match: FMNIST_NON_IID_SUD_MAXCS_seed
+        - name: UCB-CS (W=8)
+          path: "~/ma-logs/FMNIST/non_diri/UCBCS_W8"
+          match: FMNIST_NON_IID_SUD_UCBCS_W8_seed
+    plot:
+      legend: [FedAvg, MAX-CS, UCB-CS (W=8)]
+      labels: {x: Round, y: Accuracy}
+      ylim: [0, 1]
+      scale: exp
+
   e_mnist_ucbcs_c:
     df_name: e_mnist_ucbcs_c
     source:
