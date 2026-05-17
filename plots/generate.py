@@ -304,12 +304,22 @@ def create_plot(df, cfg, output, plot_name_for_csv=None):
     iqr_norm = _norm_flags(iqr_flags)
     std_norm = _norm_flags(cfg.get("std_flags"))
 
+    rec_simple = isinstance(recovery, (list, tuple)) and len(recovery) == 2
     if recovery is None:
         rec_enabled = [False] * len(base_cols)
-        rec_x0 = rec_ratio = rec_x_start = None
+        rec_x0 = rec_ratio = rec_x_start = rec_y_level = None
         rec_mode = "per_curve"
         rec_marker_size = 70
         rec_print = False
+    elif rec_simple:
+        rec_x_start = float(recovery[0])
+        rec_y_level = float(recovery[1])
+        rec_enabled = [True] * len(base_cols)
+        rec_x0 = None
+        rec_ratio = rec_y_level
+        rec_mode = "absolute"
+        rec_marker_size = 40
+        rec_print = True
     else:
         en = recovery.get("enabled", True)
         rec_enabled = (
@@ -323,6 +333,7 @@ def create_plot(df, cfg, output, plot_name_for_csv=None):
         rec_marker_size = recovery.get("marker_size", 70)
         rec_print = bool(recovery.get("print", True))
         rec_x_start = recovery.get("x_start")
+        rec_y_level = None
 
     def _idx(x_arr, x0):
         if x0 is None:
@@ -361,6 +372,7 @@ def create_plot(df, cfg, output, plot_name_for_csv=None):
             print(f"[recovery] global_baseline_at_x0={global_baseline}")
 
     recovery_rows = []
+    deferred_markers = []
     for i, col in enumerate(base_cols):
         y = y_by[col]
         if legend:
@@ -384,6 +396,29 @@ def create_plot(df, cfg, output, plot_name_for_csv=None):
             if lo_col in df.columns and hi_col in df.columns:
                 y_lo, y_hi = df[lo_col].to_numpy(), df[hi_col].to_numpy()
                 ax.fill_between(x, y_lo, y_hi, color=color, alpha=0.2)
+
+        if rec_enabled[i] and rec_simple:
+            pname = plot_name_for_csv or (title or output)
+            rec_idx = None
+            for j in range(len(y)):
+                if x[j] > rec_x_start and y[j] >= rec_y_level:
+                    rec_idx = j
+                    break
+            rec_round = None
+            if rec_idx is not None:
+                rec_round = int(round(float(x[rec_idx])))
+                deferred_markers.append((x[rec_idx], y[rec_idx], color))
+                if rec_print:
+                    print(f"  - {lab}: rec_at_round={rec_round}  y_level={rec_y_level:.4f}")
+            elif rec_print:
+                print(f"  - {lab}: not reached  y_level={rec_y_level:.4f}")
+            recovery_rows.append({
+                "plot_name": pname, "algo_name": lab,
+                "target_threshold": f"{rec_y_level:.4f}",
+                "recovery_round": rec_round,
+                "final_accuracy": _r4(y[-1]) if len(y) else None,
+            })
+            continue
 
         if rec_enabled[i] and rec_x0 is not None and rec_ratio is not None:
             pname = plot_name_for_csv or (title or output)
@@ -444,6 +479,14 @@ def create_plot(df, cfg, output, plot_name_for_csv=None):
         ax.set_ylim(ylim)
     if xlim:
         ax.set_xlim(xlim)
+
+    if deferred_markers:
+        y_bottom = ax.get_ylim()[0]
+        for x_rec, y_rec, color in deferred_markers:
+            ax.vlines(x_rec, ymin=y_bottom, ymax=y_rec,
+                      colors=color, linestyles="--", linewidth=0.8, zorder=4)
+            ax.scatter([x_rec], [y_rec], marker="o", s=rec_marker_size,
+                       color=color, zorder=5)
 
     hlines = cfg.get("hlines")
     if hlines is not None:

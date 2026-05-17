@@ -172,7 +172,7 @@ if __name__ == "__main__":
     ######################
     ## federated learning settings
     parser.add_argument('--algorithm', help='federated learning algorithm to be used', type=str,
-        choices=['fedavg', 'fedsgd', 'fedprox', 'fedavgm'], 
+        choices=['fedavg', 'fedsgd', 'fedprox', 'fedavgm', 'ucbcs_lit'],
         required=True
     )
     parser.add_argument('--eval_type', help='''the evaluation type of a model trained from FL algorithm

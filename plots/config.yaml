@@ -1,23 +1,4 @@
 plots:
-#  fmnist_non_iid_sud_acc:
-#    df_name: fmnist_non_iid_sud_acc
-#    source:
-#      tag: Server Acc1
-#      lines:
-#        - name: FedAvg
-#          path: "~/ma-logs/FMNIST/FEDAVG"
-#          match: FMNIST_NON_IID_SUD_FEDAVG_seed
-#        - name: MAX-CS
-#          path: "~/ma-logs/FMNIST/MAXCS"
-#          match: FMNIST_NON_IID_SUD_MAXCS_seed
-#        - name: UCB-CS
-#          path: "~/ma-logs/FMNIST/UCBCS"
-#          match: FMNIST_NON_IID_SUD_UCBCS_seed
-#    plot:
-#      legend: [FedAvg, MAX-CS, UCB-CS]
-#      labels: {x: Round, y: Accuracy}
-#      ylim: [0.5, 1]
-
   mnist_non_iid_sud_acc:
     df_name: mnist_non_iid_sud_acc
     source:
@@ -29,14 +10,11 @@ plots:
         - name: MAX-CS
           path: "~/ma-logs/MNIST/SUD/MAXCS"
           match: MNIST_NON_IID_SUD_MAXCS_seed
-        - name: UCB-CS
-          path: "~/ma-logs/MNIST/SUD/UCBCS"
-          match: MNIST_NON_IID_SUD_UCBCS_seed
-        - name: UCB-CS (W=5)
-          path: "~/ma-logs/MNIST/SUD/UCBCS_W5"
-          match: MNIST_NON_IID_SUD_UCBCS_W5_seed
+        - name: UCB-CS (W=8)
+          path: "~/ma-logs/MNIST/SUD/UCBCS_W8"
+          match: MNIST_NON_IID_SUD_UCBCS_W8_seed
     plot:
-      legend: [FedAvg, MAX-CS, UCB-CS, UCB-CS (W=5)]
+      legend: [FedAvg, MAX-CS, UCB-CS (W=8)]
       labels: {x: Round, y: Accuracy}
       ylim: [0, 1]
       scale: exp
@@ -52,14 +30,11 @@ plots:
         - name: MAX-CS
           path: "~/ma-logs/MNIST/INC/MAXCS"
           match: MNIST_NON_IID_INC_MAXCS_seed
-        - name: UCB-CS
-          path: "~/ma-logs/MNIST/INC/UCBCS"
-          match: MNIST_NON_IID_INC_UCBCS_seed
-        - name: UCB-CS (W=5)
-          path: "~/ma-logs/MNIST/INC/UCBCS_W5"
-          match: MNIST_NON_IID_INC_UCBCS_W5_seed
+        - name: UCB-CS (W=8)
+          path: "~/ma-logs/MNIST/INC/UCBCS_W8"
+          match: MNIST_NON_IID_INC_UCBCS_W8_seed
     plot:
-      legend: [FedAvg, MAX-CS, UCB-CS, UCB-CS (W=5)]
+      legend: [FedAvg, MAX-CS, UCB-CS (W=8)]
       labels: {x: Round, y: Accuracy}
       ylim: [0, 1]
       scale: exp
@@ -75,31 +50,28 @@ plots:
         - name: MAX-CS
           path: "~/ma-logs/FMNIST/INC/MAXCS"
           match: FMNIST_NON_IID_INC_MAXCS_seed
-        - name: UCB-CS
-          path: "~/ma-logs/FMNIST/INC/UCBCS"
-          match: FMNIST_NON_IID_INC_UCBCS_seed
-        - name: UCB-CS (W=5)
-          path: "~/ma-logs/FMNIST/INC/UCBCS_W5"
-          match: FMNIST_NON_IID_INC_UCBCS_W5_seed
+        - name: UCB-CS (W=8)
+          path: "~/ma-logs/FMNIST/INC/UCBCS_W8"
+          match: FMNIST_NON_IID_INC_UCBCS_W8_seed
     plot:
-      legend: [FedAvg, MAX-CS, UCB-CS, UCB-CS (W=5)]
+      legend: [FedAvg, MAX-CS, UCB-CS (W=8)]
       labels: {x: Round, y: Accuracy}
       ylim: [0, 1]
       scale: exp
 
-  fmnist_non_diri_acc:
-    df_name: fmnist_non_diri_acc
+  fmnist_non_iid_sud_acc:
+    df_name: fmnist_non_iid_sud_acc
     source:
       tag: Server Acc1
       lines:
         - name: FedAvg
-          path: "~/ma-logs/FMNIST/non_diri/FEDAVG"
+          path: "~/ma-logs/FMNIST/SUD/FEDAVG"
           match: FMNIST_NON_IID_SUD_FEDAVG_seed
         - name: MAX-CS
-          path: "~/ma-logs/FMNIST/non_diri/MAXCS"
+          path: "~/ma-logs/FMNIST/SUD/MAXCS"
           match: FMNIST_NON_IID_SUD_MAXCS_seed
         - name: UCB-CS (W=8)
-          path: "~/ma-logs/FMNIST/non_diri/UCBCS_W8"
+          path: "~/ma-logs/FMNIST/SUD/UCBCS_W8"
           match: FMNIST_NON_IID_SUD_UCBCS_W8_seed
     plot:
       legend: [FedAvg, MAX-CS, UCB-CS (W=8)]
@@ -129,8 +101,7 @@ plots:
       labels: {x: Round, y: Accuracy}
       ylim: [0, 1]
       scale: exp
-      hlines: 0.97
-      vlines: 48
+      recovery: [40, 0.97]
 
   e_mnist_ucbcs_w:
     df_name: e_mnist_ucbcs_w
@@ -154,8 +125,7 @@ plots:
       labels: {x: Round, y: Accuracy}
       ylim: [0, 1]
       scale: exp
-      hlines: 0.97
-      vlines: 48
+      recovery: [40, 0.97]
 
   e_mnist_ucbcs_g:
     df_name: e_mnist_ucbcs_g
@@ -179,8 +149,7 @@ plots:
       labels: {x: Round, y: Accuracy}
       ylim: [0, 1]
       scale: exp
-      hlines: 0.97
-      vlines: 48
+      recovery: [40, 0.97]
 
   chexpert_non_iid_sud_auroc:
     df_name: chexpert_non_iid_sud_auroc
@@ -196,71 +165,13 @@ plots:
         - name: UCB-CS
           path: "~/ma-logs/CheXpert/UCBCS"
           match: CHEXPERT_NON_IID_SUD_UCBCS_seed
-        - name: UCB-CS (W=5)
-          path: "~/ma-logs/CheXpert/UCBCS_W5"
-          match: CHEXPERT_NON_IID_SUD_UCBCS_W5_seed
-        - name: UCB-CS (W=8)
-          path: "~/ma-logs/CheXpert/UCBCS_W8"
-          match: CHEXPERT_NON_IID_SUD_UCBCS_W8_seed
+        - name: UCB-CS (W=24)
+          path: "~/ma-logs/CheXpert/UCBCS_W24"
+          match: CHEXPERT_NON_IID_SUD_UCBCS_W24_seed
     plot:
-      legend: [FedAvg, MAX-CS, UCB-CS, UCB-CS (W=5), UCB-CS (W=8)]
+      legend: [FedAvg, MAX-CS, UCB-CS, UCB-CS (W=24)]
       labels: {x: Round, y: AUROC}
       ylim: [0.6, 0.8]
-
-  chexpert_non_iid_sud_acc:
-    df_name: chexpert_non_iid_sud_acc
-    source:
-      tag: Server Mlacc
-      lines:
-        - name: FedAvg
-          path: "~/ma-logs/CheXpert/FEDAVG"
-          match: CHEXPERT_NON_IID_SUD_FEDAVG_seed
-        - name: MAX-CS
-          path: "~/ma-logs/CheXpert/MAXCS"
-          match: CHEXPERT_NON_IID_SUD_MAXCS_seed
-        - name: UCB-CS
-          path: "~/ma-logs/CheXpert/UCBCS"
-          match: CHEXPERT_NON_IID_SUD_UCBCS_seed
-        - name: UCB-CS (W=5)
-          path: "~/ma-logs/CheXpert/UCBCS_W5"
-          match: CHEXPERT_NON_IID_SUD_UCBCS_W5_seed
-        - name: UCB-CS (W=8)
-          path: "~/ma-logs/CheXpert/UCBCS_W8"
-          match: CHEXPERT_NON_IID_SUD_UCBCS_W8_seed
-    plot:
-      legend: [FedAvg, MAX-CS, UCB-CS, UCB-CS (W=5), UCB-CS (W=8)]
-      labels: {x: Round, y: Accuracy}
-      ylim: [0.8, 0.83]
-
-  mimic_non_iid_sud_acc:
-    df_name: mimic_non_iid_sud_acc
-    source:
-      tag: Server Acc1
-      lines:
-        - name: FedAvg
-          path: "~/ma-logs/MIMIC4/FEDAVG"
-          match: MIMIC_NON_IID_SUD_FEDAVG_seed
-        - name: MAX-CS
-          path: "~/ma-logs/MIMIC4/MAXCS"
-          match: MIMIC_NON_IID_SUD_MAXCS_seed
-#        - name: UCB-CS (loss)
-#          path: "~/ma-logs/MIMIC4/UCBCS"
-#          match: MIMIC_NON_IID_SUD_UCBCS_seed
-        - name: UCB-CS (W=5)
-          path: "~/ma-logs/MIMIC4/UCBCS_W5"
-          match: MIMIC_NON_IID_SUD_UCBCS_W5_seed
-        - name: UCB-CS (W=8)
-          path: "~/ma-logs/MIMIC4/UCBCS_W8"
-          match: MIMIC_NON_IID_SUD_UCBCS_W8_seed
-    plot:
-      legend:
-        - FedAvg
-        - MAX-CS
-#        - UCB-CS (loss)
-        - UCB-CS (W=5)
-        - UCB-CS (W=8)
-      labels: {x: Round, y: Accuracy}
-      ylim: [0.8, 0.92]
 
   mimic_non_iid_sud_auprc:
     df_name: mimic_non_iid_sud_auprc
@@ -273,22 +184,14 @@ plots:
         - name: MAX-CS
           path: "~/ma-logs/MIMIC4/MAXCS"
           match: MIMIC_NON_IID_SUD_MAXCS_seed
-#        - name: UCB-CS (loss)
-#          path: "~/ma-logs/MIMIC4/UCBCS"
-#          match: MIMIC_NON_IID_SUD_UCBCS_seed
-        - name: UCB-CS (W=5)
-          path: "~/ma-logs/MIMIC4/UCBCS_W5"
-          match: MIMIC_NON_IID_SUD_UCBCS_W5_seed
-        - name: UCB-CS (W=8)
-          path: "~/ma-logs/MIMIC4/UCBCS_W8"
-          match: MIMIC_NON_IID_SUD_UCBCS_W8_seed
+        - name: UCB-CS (W=24)
+          path: "~/ma-logs/MIMIC4/UCBCS_W24"
+          match: MIMIC_NON_IID_SUD_UCBCS_W24_seed
     plot:
       legend:
         - FedAvg
         - MAX-CS
-#        - UCB-CS (loss)
-        - UCB-CS (W=5)
-        - UCB-CS (W=8)
+        - UCB-CS (W=24)
       labels: {x: Round, y: AUPRC}
       ylim: [0.55, 0.7]
       xlim: [390, 440]
@@ -304,22 +207,14 @@ plots:
         - name: MAX-CS
           path: "~/ma-logs/MIMIC4/MAXCS"
           match: MIMIC_NON_IID_SUD_MAXCS_seed
-        #        - name: UCB-CS (loss)
-        #          path: "~/ma-logs/MIMIC4/UCBCS"
-        #          match: MIMIC_NON_IID_SUD_UCBCS_seed
-        - name: UCB-CS (W=5)
-          path: "~/ma-logs/MIMIC4/UCBCS_W5"
-          match: MIMIC_NON_IID_SUD_UCBCS_W5_seed
-        - name: UCB-CS (W=8)
-          path: "~/ma-logs/MIMIC4/UCBCS_W8"
-          match: MIMIC_NON_IID_SUD_UCBCS_W8_seed
+        - name: UCB-CS (W=24)
+          path: "~/ma-logs/MIMIC4/UCBCS_W24"
+          match: MIMIC_NON_IID_SUD_UCBCS_W24_seed
     plot:
       legend:
         - FedAvg
         - MAX-CS
-        #        - UCB-CS (loss)
-        - UCB-CS (W=5)
-        - UCB-CS (W=8)
+        - UCB-CS (W=24)
       labels: { x: Round, y: AUPRC }
       ylim: [ 0.5, 0.7 ]
       xlim: [ 0, 250 ]

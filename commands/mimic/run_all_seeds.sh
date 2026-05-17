@@ -6,9 +6,9 @@ cd "$(dirname "$0")/../.."
 SCRIPTS=(
   commands/mimic/MIMIC_NON_IID_SUD_FEDAVG.sh
   commands/mimic/MIMIC_NON_IID_SUD_MAXCS.sh
-  commands/mimic/MIMIC_NON_IID_SUD_UCBCS.sh
-  commands/mimic/MIMIC_NON_IID_SUD_UCBCS_W5.sh
   commands/mimic/MIMIC_NON_IID_SUD_UCBCS_W8.sh
+  commands/mimic/MIMIC_NON_IID_SUD_UCBCS_W12.sh
+  commands/mimic/MIMIC_NON_IID_SUD_UCBCS_W24.sh
 )
 
 SEEDS=($(seq 42 42))
