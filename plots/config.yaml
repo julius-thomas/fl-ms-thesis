@@ -13,8 +13,11 @@ plots:
         - name: UCB-CS (W=8)
           path: "~/ma-logs/MNIST/SUD/UCBCS_W8"
           match: MNIST_NON_IID_SUD_UCBCS_W8_seed
+        - name: UCB-CS
+          path: "~/ma-logs/MNIST/SUD/UCBCS_LIT"
+          match: MNIST_NON_IID_SUD_UCBCS_LIT_seed
     plot:
-      legend: [FedAvg, MAX-CS, UCB-CS (W=8)]
+      legend: [FedAvg, MAX-CS, UCB-CS (W=8), UCB-CS]
       labels: {x: Round, y: Accuracy}
       ylim: [0, 1]
       scale: exp
@@ -33,8 +36,11 @@ plots:
         - name: UCB-CS (W=8)
           path: "~/ma-logs/MNIST/INC/UCBCS_W8"
           match: MNIST_NON_IID_INC_UCBCS_W8_seed
+        - name: UCB-CS
+          path: "~/ma-logs/MNIST/INC/UCBCS_LIT"
+          match: MNIST_NON_IID_INC_UCBCS_LIT_seed
     plot:
-      legend: [FedAvg, MAX-CS, UCB-CS (W=8)]
+      legend: [FedAvg, MAX-CS, UCB-CS (W=8), UCB-CS]
       labels: {x: Round, y: Accuracy}
       ylim: [0, 1]
       scale: exp
@@ -53,8 +59,11 @@ plots:
         - name: UCB-CS (W=8)
           path: "~/ma-logs/FMNIST/INC/UCBCS_W8"
           match: FMNIST_NON_IID_INC_UCBCS_W8_seed
+        - name: UCB-CS
+          path: "~/ma-logs/FMNIST/INC/UCBCS_LIT"
+          match: FMNIST_NON_IID_INC_UCBCS_LIT_seed
     plot:
-      legend: [FedAvg, MAX-CS, UCB-CS (W=8)]
+      legend: [FedAvg, MAX-CS, UCB-CS (W=8), UCB-CS]
       labels: {x: Round, y: Accuracy}
       ylim: [0, 1]
       scale: exp
@@ -73,8 +82,11 @@ plots:
         - name: UCB-CS (W=8)
           path: "~/ma-logs/FMNIST/SUD/UCBCS_W8"
           match: FMNIST_NON_IID_SUD_UCBCS_W8_seed
+        - name: UCB-CS
+          path: "~/ma-logs/FMNIST/SUD/UCBCS_LIT"
+          match: FMNIST_NON_IID_SUD_UCBCS_LIT_seed
     plot:
-      legend: [FedAvg, MAX-CS, UCB-CS (W=8)]
+      legend: [FedAvg, MAX-CS, UCB-CS (W=8), UCB-CS]
       labels: {x: Round, y: Accuracy}
       ylim: [0, 1]
       scale: exp
@@ -163,8 +175,8 @@ plots:
           path: "~/ma-logs/CheXpert/MAXCS"
           match: CHEXPERT_NON_IID_SUD_MAXCS_seed
         - name: UCB-CS
-          path: "~/ma-logs/CheXpert/UCBCS"
-          match: CHEXPERT_NON_IID_SUD_UCBCS_seed
+          path: "~/ma-logs/CheXpert/UCBCS_LIT"
+          match: CHEXPERT_NON_IID_SUD_UCBCS_LIT_seed
         - name: UCB-CS (W=24)
           path: "~/ma-logs/CheXpert/UCBCS_W24"
           match: CHEXPERT_NON_IID_SUD_UCBCS_W24_seed
